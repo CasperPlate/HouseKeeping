@@ -3,6 +3,7 @@ package com.housekeeping;
 import com.google.common.collect.ImmutableList;
 import com.housekeeping.rules.BookcaseRule;
 import com.housekeeping.rules.JunkRule;
+import com.housekeeping.rules.PohStorageRule;
 import com.housekeeping.rules.QuestItemRule;
 import com.housekeeping.rules.SkillOutgrownRule;
 import com.housekeeping.rules.SuggestionRule;
@@ -18,6 +19,7 @@ public class SuggestionEngine
 		new BookcaseRule(),
 		new JunkRule(),
 		new QuestItemRule(),
+		new PohStorageRule(),
 		new SkillOutgrownRule()
 	);
 

@@ -1,5 +1,6 @@
 package com.housekeeping;
 
+import com.housekeeping.data.PohStorage;
 import java.util.Map;
 import java.util.Set;
 import lombok.Value;
@@ -15,6 +16,10 @@ public class PlayerState
 {
 	Map<Skill, Integer> levels;
 	Set<Quest> finishedQuests;
+	/**
+	 * Costume room storage the player has told us they built.
+	 */
+	Set<PohStorage.Storage> pohStorage;
 
 	public int getLevel(Skill skill)
 	{

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-Regenerates HouseKeeping's wiki-derived data classes:
+Regenerates House Keeping's wiki-derived data classes:
 
   src/main/java/com/housekeeping/data/BookcaseBooks.java
   src/main/java/com/housekeeping/data/QuestItems.java
+  src/main/java/com/housekeeping/data/PohStorage.java
 
 Run by hand when new content is released; it is not part of the plugin build and the plugin
 itself never touches the network. Needs Python 3.8+ and a JDK (for javap) on PATH or JAVA_HOME,
@@ -186,6 +187,47 @@ def item_ids(box):
 	return sorted({int(x) for f in fields(box, "id") for x in re.split(r"[ ,]+", f) if x.isdigit()})
 
 
+def resolve_pages(names):
+	"""Fetch item pages, keeping track of which version a redirect such as 'Agility cape(t)' points at."""
+	resolved = {}
+	texts = {}
+	names = list(names)
+	for i in range(0, len(names), 50):
+		batch = names[i:i + 50]
+		data = api(action="query", prop="revisions", rvprop="content", rvslots="main", redirects=1,
+			titles="|".join(batch))
+		normalized = {n["from"]: n["to"] for n in data["query"].get("normalized", [])}
+		redirects = {r["from"]: (r["to"], r.get("tofragment")) for r in data["query"].get("redirects", [])}
+		for name in batch:
+			title = normalized.get(name, name)
+			resolved[name] = redirects.get(title, (title, None))
+		for page in data["query"]["pages"]:
+			if "revisions" in page:
+				texts[page["title"]] = page["revisions"][0]["slots"]["main"]["content"]
+		time.sleep(0.5)
+	return resolved, texts
+
+
+def versioned_ids(text, name, version):
+	"""Item ids for one item page, narrowed to a single version of a multi-version page when possible."""
+	versions = {}
+	for key, num, value in re.findall(r"\|\s*(version|name|id)(\d*)\s*=\s*([^\n]*)", infobox(text)):
+		versions.setdefault(num, {})[key] = value.strip()
+	for v in versions.values():
+		v["ids"] = [int(x) for x in re.split(r"[ ,]+", v.get("id", "")) if x.isdigit()]
+
+	numbered = [v for num, v in versions.items() if num]
+	if not numbered:
+		return versions.get("", {}).get("ids", [])
+	for wanted in (version, name):
+		if wanted:
+			hits = [v for v in numbered if wanted.lower() in ((v.get("version") or "").lower(), (v.get("name") or "").lower())]
+			if hits:
+				return [i for v in hits for i in v["ids"]]
+	# No single version named: every version is the same item in another colour, gender or worn state
+	return sorted({i for v in numbered for i in v["ids"]} | set(versions.get("", {}).get("ids", [])))
+
+
 def plain(wikitext):
 	return re.sub(r"\[\[(?:[^\]|]*\|)?([^\]]*)\]\]", r"\1", wikitext)
 
@@ -284,6 +326,128 @@ def generate_quest_items(items, match_quest, book_consts, review):
 	print(len(lines), "quest item entries", file=sys.stderr)
 
 
+POH_FURNITURE = [
+	# (wiki page, storage, section heading or None for the whole list)
+	("Armour case space", "ARMOUR_CASE", None),
+	("Cape rack space", "CAPE_RACK", None),
+	("Magic wardrobe space", "MAGIC_WARDROBE", None),
+	("Fancy dress box space", "FANCY_DRESS_BOX", None),
+	("Toy box space", "TOY_BOX", None),
+	# Only the treasure chest's tier changes what fits: oak holds beginner and easy, teak adds medium
+	("Treasure chest space", "TREASURE_CHEST_OAK", "Beginner"),
+	("Treasure chest space", "TREASURE_CHEST_OAK", "Easy"),
+	("Treasure chest space", "TREASURE_CHEST_TEAK", "Medium"),
+	("Treasure chest space", "TREASURE_CHEST_MAHOGANY", "Hard"),
+	("Treasure chest space", "TREASURE_CHEST_MAHOGANY", "Elite"),
+	("Treasure chest space", "TREASURE_CHEST_MAHOGANY", "Master"),
+]
+
+# Variants that share a wiki page but can't be stored: broken minigame armour and temporary event copies
+POH_SKIP_VARIANT = re.compile(r"_(BROKEN|TEMP)$|_EVENT_|_GAME_\d*")
+
+# Table cells use plinkp/plinkt; plain plink only appears in footnotes about related items
+ITEM_LINK = re.compile(r"\{\{[Pp]link[pt]\|([^|}=]+)((?:\|[^}]*)?)\}\}")
+
+
+def furniture_items(text, heading):
+	body = text[text.find("<onlyinclude>"):] if "<onlyinclude>" in text else text
+	if heading:
+		start = re.search(r"^===\s*" + heading + r"\s*===", body, re.M)
+		if not start:
+			sys.exit("Treasure chest section not found: " + heading)
+		end = re.search(r"^==", body[start.end():], re.M)
+		body = body[start.end():start.end() + end.start()] if end else body[start.end():]
+	elif "==Changes==" in body:
+		body = body[:body.find("==Changes==")]
+
+	links = []
+	for name, rest in ITEM_LINK.findall(body):
+		pic = re.search(r"pic=([^|}]+)", rest)
+		# 'pic=Prescription goggles (focused)' picks one version of a multi-version page
+		version = re.search(r"\(([^)]*)\)\s*$", pic.group(1)) if pic else None
+		links.append((name.strip(), version.group(1) if version else None))
+	return links
+
+
+def generate_poh(items):
+	pages = page_texts(sorted({page for page, _, _ in POH_FURNITURE}))
+	links = []
+	for page, storage, heading in POH_FURNITURE:
+		links += [(name, version, storage) for name, version in furniture_items(pages[page], heading)]
+
+	resolved, texts = resolve_pages(sorted({name for name, _, _ in links}))
+	storage_by_const = {}
+	for name, version, storage in links:
+		title, fragment = resolved[name]
+		text = texts.get(title)
+		if text is None:
+			print("  skipped storable item without wiki page:", name, file=sys.stderr)
+			continue
+		for item_id in versioned_ids(text, name, fragment or version):
+			const = items.get(item_id)
+			if const and not POH_SKIP_VARIANT.search(const):
+				storage_by_const.setdefault(const, set()).add(storage)
+
+	lines = ["\t\tadd(ItemID.%s, %s);" % (const, ", ".join("Storage." + s for s in sorted(storages)))
+		for const, storages in sorted(storage_by_const.items())]
+	write("PohStorage.java", POH_TEMPLATE.replace("$ENTRIES", "\n".join(lines)))
+	print(len(lines), "POH storage entries", file=sys.stderr)
+
+
+POH_TEMPLATE = """package com.housekeeping.data;
+
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
+import java.util.Map;
+import java.util.Set;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import net.runelite.api.gameval.ItemID;
+
+/**
+ * Items that can be stored in costume room furniture. Generated by scripts/generate_data.py from the
+ * OSRS Wiki's armour case, cape rack, magic wardrobe, fancy dress box, toy box and treasure chest space pages.
+ */
+public final class PohStorage
+{
+\t@Getter
+\t@RequiredArgsConstructor
+\tpublic enum Storage
+\t{
+\t\tARMOUR_CASE("armour case"),
+\t\tCAPE_RACK("cape rack"),
+\t\tMAGIC_WARDROBE("magic wardrobe"),
+\t\tFANCY_DRESS_BOX("fancy dress box"),
+\t\tTOY_BOX("toy box"),
+\t\t// The minimum treasure chest that holds the item
+\t\tTREASURE_CHEST_OAK("treasure chest"),
+\t\tTREASURE_CHEST_TEAK("treasure chest"),
+\t\tTREASURE_CHEST_MAHOGANY("treasure chest");
+
+\t\tprivate final String displayName;
+\t}
+
+\tprivate static final ImmutableMap.Builder<Integer, Set<Storage>> BUILDER = ImmutableMap.builder();
+
+\tstatic
+\t{
+$ENTRIES
+\t}
+
+\tpublic static final Map<Integer, Set<Storage>> ITEMS = BUILDER.build();
+
+\tprivate PohStorage()
+\t{
+\t}
+
+\tprivate static void add(int itemId, Storage first, Storage... rest)
+\t{
+\t\tBUILDER.put(itemId, Sets.immutableEnumSet(first, rest));
+\t}
+}
+"""
+
+
 BOOKS_TEMPLATE = """package com.housekeeping.data;
 
 import com.google.common.collect.ImmutableMap;
@@ -379,6 +543,7 @@ def main():
 	match_quest = quest_matcher(quests)
 	book_consts = generate_books(items, match_quest)
 	generate_quest_items(items, match_quest, book_consts, args.review)
+	generate_poh(items)
 
 
 if __name__ == "__main__":

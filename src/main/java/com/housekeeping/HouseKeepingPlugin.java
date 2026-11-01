@@ -3,6 +3,7 @@ package com.housekeeping;
 import com.google.inject.Provides;
 import com.housekeeping.data.BookcaseBooks;
 import com.housekeeping.data.OutgrownItems;
+import com.housekeeping.data.PohStorage;
 import com.housekeeping.data.QuestItems;
 import java.awt.Color;
 import java.awt.image.BufferedImage;
@@ -289,6 +290,8 @@ public class HouseKeepingPlugin extends Plugin
 				return config.outgrownColor();
 			case QUEST:
 				return config.questColor();
+			case POH:
+				return config.pohColor();
 			case JUNK:
 			default:
 				return config.junkColor();
@@ -320,6 +323,10 @@ public class HouseKeepingPlugin extends Plugin
 		if (config.showQuest())
 		{
 			enabled.add(Category.QUEST);
+		}
+		if (config.showPoh())
+		{
+			enabled.add(Category.POH);
 		}
 		if (config.showJunk())
 		{
@@ -423,7 +430,46 @@ public class HouseKeepingPlugin extends Plugin
 			finishedQuests = finished;
 		}
 
-		return new PlayerState(levels, finishedQuests);
+		return new PlayerState(levels, finishedQuests, builtStorage());
+	}
+
+	private Set<PohStorage.Storage> builtStorage()
+	{
+		Set<PohStorage.Storage> built = EnumSet.noneOf(PohStorage.Storage.class);
+		switch (config.treasureChest())
+		{
+			// Each chest also holds everything the smaller chests hold
+			case MAHOGANY:
+				built.add(PohStorage.Storage.TREASURE_CHEST_MAHOGANY);
+			case TEAK:
+				built.add(PohStorage.Storage.TREASURE_CHEST_TEAK);
+			case OAK:
+				built.add(PohStorage.Storage.TREASURE_CHEST_OAK);
+			case NOT_BUILT:
+			default:
+				break;
+		}
+		if (config.armourCase())
+		{
+			built.add(PohStorage.Storage.ARMOUR_CASE);
+		}
+		if (config.capeRack())
+		{
+			built.add(PohStorage.Storage.CAPE_RACK);
+		}
+		if (config.magicWardrobe())
+		{
+			built.add(PohStorage.Storage.MAGIC_WARDROBE);
+		}
+		if (config.fancyDressBox())
+		{
+			built.add(PohStorage.Storage.FANCY_DRESS_BOX);
+		}
+		if (config.toyBox())
+		{
+			built.add(PohStorage.Storage.TOY_BOX);
+		}
+		return built;
 	}
 
 	@Provides

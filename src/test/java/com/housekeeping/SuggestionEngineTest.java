@@ -2,6 +2,7 @@ package com.housekeeping;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.housekeeping.data.PohStorage;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
@@ -21,7 +22,12 @@ public class SuggestionEngineTest
 
 	private static PlayerState state(Map<Skill, Integer> levels, Set<Quest> quests)
 	{
-		return new PlayerState(levels, quests);
+		return new PlayerState(levels, quests, Set.of());
+	}
+
+	private static PlayerState built(PohStorage.Storage... storage)
+	{
+		return new PlayerState(Map.of(), Set.of(), Set.of(storage));
 	}
 
 	private List<Suggestion> evaluate(int itemId, PlayerState state)
@@ -110,6 +116,27 @@ public class SuggestionEngineTest
 
 		Set<Quest> both = ImmutableSet.of(Quest.BIOHAZARD, Quest.MOURNINGS_END_PART_I);
 		assertEquals(1, evaluate(ItemID.ROTTENAPPLES, state(Map.of(), both)).size());
+	}
+
+	@Test
+	public void pohItemNeedsMatchingFurniture()
+	{
+		assertTrue(evaluate(ItemID.BUNNYEARS, built()).isEmpty());
+		assertTrue(evaluate(ItemID.BUNNYEARS, built(PohStorage.Storage.CAPE_RACK)).isEmpty());
+
+		List<Suggestion> result = evaluate(ItemID.BUNNYEARS, built(PohStorage.Storage.TOY_BOX));
+		assertEquals(1, result.size());
+		assertEquals(Category.POH, result.get(0).getCategory());
+	}
+
+	@Test
+	public void treasureChestTierLimitsClueRewards()
+	{
+		// Frog slippers are a beginner clue reward, so any chest holds them
+		assertEquals(1, evaluate(ItemID.FROG_SLIPPERS, built(PohStorage.Storage.TREASURE_CHEST_OAK)).size());
+		// A master clue reward needs the mahogany chest
+		assertTrue(evaluate(ItemID.BUCKET_HELM, built(PohStorage.Storage.TREASURE_CHEST_OAK)).isEmpty());
+		assertEquals(1, evaluate(ItemID.BUCKET_HELM, built(PohStorage.Storage.TREASURE_CHEST_MAHOGANY)).size());
 	}
 
 	@Test
