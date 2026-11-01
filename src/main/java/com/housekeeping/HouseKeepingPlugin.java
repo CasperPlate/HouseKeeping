@@ -8,6 +8,7 @@ import com.housekeeping.data.QuestItems;
 import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -38,17 +39,23 @@ import net.runelite.api.events.GameTick;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.events.MenuOpened;
 import net.runelite.api.events.StatChanged;
+import net.runelite.api.events.WidgetClosed;
 import net.runelite.api.events.WidgetLoaded;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.InventoryID;
 import net.runelite.api.gameval.ItemID;
+import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.events.RuneScapeProfileChanged;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.plugins.Plugin;
+import net.runelite.client.plugins.PluginDependency;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.banktags.BankTagsPlugin;
+import net.runelite.client.plugins.banktags.BankTagsService;
+import net.runelite.client.plugins.banktags.TagManager;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.ui.overlay.OverlayManager;
@@ -61,8 +68,15 @@ import net.runelite.client.util.ImageUtil;
 	description = "Suggests bank items you have outgrown, can store in your POH, or no longer need",
 	tags = {"bank", "poh", "quest", "storage", "cleanup"}
 )
+@PluginDependency(BankTagsPlugin.class)
 public class HouseKeepingPlugin extends Plugin
 {
+	// Virtual bank tags: one with every suggestion, and one per category
+	private static final String BANK_TAG = "House Keeping";
+	private static final Map<Category, String> CATEGORY_BANK_TAGS = Arrays.stream(Category.values())
+		.collect(Collectors.toMap(c -> c, c -> BANK_TAG + " - " + c.getDisplayName(),
+			(a, b) -> a, () -> new EnumMap<>(Category.class)));
+
 	// Every quest a rule depends on; their states are read on login and whenever the bank opens
 	private static final Set<Quest> TRACKED_QUESTS = Stream.concat(
 			BookcaseBooks.ITEMS.values().stream().map(BookcaseBooks.Entry::getQuest).filter(Objects::nonNull),
@@ -90,6 +104,15 @@ public class HouseKeepingPlugin extends Plugin
 	@Inject
 	private ClientToolbar clientToolbar;
 
+	@Inject
+	private ClientThread clientThread;
+
+	@Inject
+	private TagManager tagManager;
+
+	@Inject
+	private BankTagsService bankTagsService;
+
 	private final SuggestionEngine engine = new SuggestionEngine();
 
 	private HouseKeepingPanel panel;
@@ -113,7 +136,7 @@ public class HouseKeepingPlugin extends Plugin
 	{
 		overlayManager.add(overlay);
 
-		panel = new HouseKeepingPanel(itemManager, this::ignore, this::restore);
+		panel = new HouseKeepingPanel(itemManager, this::ignore, this::restore, this::showInBank);
 		BufferedImage icon = ImageUtil.loadImageResource(getClass(), "icon.png");
 		navButton = NavigationButton.builder()
 			.tooltip("House Keeping")
@@ -123,12 +146,24 @@ public class HouseKeepingPlugin extends Plugin
 			.build();
 		clientToolbar.addNavigation(navButton);
 
+		// Ignored items never match: visibleSuggestions only holds what the player still wants to see.
+		// A lambda, not a method reference, so each check reads the latest map.
+		tagManager.registerTag(BANK_TAG, itemId -> visibleSuggestions.containsKey(itemId));
+		CATEGORY_BANK_TAGS.forEach((category, tag) -> tagManager.registerTag(tag, itemId ->
+		{
+			Suggestion suggestion = visibleSuggestions.get(itemId);
+			return suggestion != null && suggestion.getCategory() == category;
+		}));
+
 		if (client.getGameState() == GameState.LOGGED_IN)
 		{
 			store.load();
 			questsDirty = true;
 			refreshPending = true;
 		}
+
+		// Bank open/close events only cover changes from now on, so pick up a bank that's already open
+		clientThread.invoke(() -> setBankOpen(client.getWidget(InterfaceID.Bankmain.ITEMS) != null));
 	}
 
 	@Override
@@ -136,6 +171,15 @@ public class HouseKeepingPlugin extends Plugin
 	{
 		overlayManager.remove(overlay);
 		clientToolbar.removeNavigation(navButton);
+		clientThread.invoke(() ->
+		{
+			if (isOurBankTag(bankTagsService.getActiveTag()))
+			{
+				bankTagsService.closeBankTag();
+			}
+		});
+		tagManager.unregisterTag(BANK_TAG);
+		CATEGORY_BANK_TAGS.values().forEach(tagManager::unregisterTag);
 		panel = null;
 		navButton = null;
 		visibleSuggestions = Collections.emptyMap();
@@ -172,6 +216,16 @@ public class HouseKeepingPlugin extends Plugin
 		{
 			questsDirty = true;
 			refreshPending = true;
+			setBankOpen(true);
+		}
+	}
+
+	@Subscribe
+	public void onWidgetClosed(WidgetClosed event)
+	{
+		if (event.getGroupId() == InterfaceID.BANKMAIN)
+		{
+			setBankOpen(false);
 		}
 	}
 
@@ -298,6 +352,46 @@ public class HouseKeepingPlugin extends Plugin
 		}
 	}
 
+	/**
+	 * Toggles the House Keeping bank tab, for one category or everything when the category is null.
+	 */
+	private void showInBank(Category category)
+	{
+		String tag = category == null ? BANK_TAG : CATEGORY_BANK_TAGS.get(category);
+		clientThread.invoke(() ->
+		{
+			if (client.getWidget(InterfaceID.Bankmain.ITEMS) == null)
+			{
+				return;
+			}
+			if (tag.equals(bankTagsService.getActiveTag()))
+			{
+				bankTagsService.closeBankTag();
+			}
+			else
+			{
+				bankTagsService.openBankTag(tag, BankTagsService.OPTION_NO_LAYOUT);
+			}
+		});
+	}
+
+	private static boolean isOurBankTag(String tag)
+	{
+		return BANK_TAG.equals(tag) || CATEGORY_BANK_TAGS.containsValue(tag);
+	}
+
+	private void setBankOpen(boolean open)
+	{
+		HouseKeepingPanel currentPanel = panel;
+		SwingUtilities.invokeLater(() ->
+		{
+			if (currentPanel != null)
+			{
+				currentPanel.setBankOpen(open);
+			}
+		});
+	}
+
 	private void ignore(int itemId)
 	{
 		store.setIgnored(itemId, true);
@@ -372,7 +466,15 @@ public class HouseKeepingPlugin extends Plugin
 				visible.putIfAbsent(entry.getKey(), suggestion);
 			}
 		}
+		boolean changed = !visible.equals(visibleSuggestions);
 		visibleSuggestions = Collections.unmodifiableMap(visible);
+
+		// Re-filter an open House Keeping bank tab, e.g. after an item was ignored
+		String activeTag = bankTagsService.getActiveTag();
+		if (changed && isOurBankTag(activeTag))
+		{
+			bankTagsService.openBankTag(activeTag, BankTagsService.OPTION_NO_LAYOUT);
+		}
 
 		boolean hasSnapshot = !bank.isEmpty();
 		boolean showCounter = config.showCounter();

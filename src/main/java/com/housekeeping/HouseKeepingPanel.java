@@ -42,6 +42,8 @@ class HouseKeepingPanel extends PluginPanel
 	private final ItemManager itemManager;
 	private final Consumer<Integer> onIgnore;
 	private final Consumer<Integer> onRestore;
+	// Called with a category, or null for every suggestion
+	private final Consumer<Category> onShowInBank;
 	private final Map<Category, Color> colors = new EnumMap<>(Category.class);
 
 	// Groups the user has collapsed; only the ignored list starts collapsed
@@ -49,18 +51,22 @@ class HouseKeepingPanel extends PluginPanel
 	private final JPanel content = new JPanel();
 	private final JLabel counter = new JLabel();
 	private final IconTextField searchBar = new IconTextField();
+	private final JButton showInBank = new JButton("Show in bank");
 
 	// The latest results from the plugin, kept so typing in the search bar can re-render without it
 	private List<ItemSuggestion> active = List.of();
 	private List<ItemSuggestion> ignored = List.of();
 	private boolean hasSnapshot;
 	private boolean showCounter;
+	private boolean bankOpen;
 
-	HouseKeepingPanel(ItemManager itemManager, Consumer<Integer> onIgnore, Consumer<Integer> onRestore)
+	HouseKeepingPanel(ItemManager itemManager, Consumer<Integer> onIgnore, Consumer<Integer> onRestore,
+		Consumer<Category> onShowInBank)
 	{
 		this.itemManager = itemManager;
 		this.onIgnore = onIgnore;
 		this.onRestore = onRestore;
+		this.onShowInBank = onShowInBank;
 		collapsed.add(IGNORED_GROUP);
 
 		setLayout(new BorderLayout());
@@ -111,11 +117,19 @@ class HouseKeepingPanel extends PluginPanel
 		});
 		searchBar.addClearListener(this::render);
 
+		showInBank.setFocusPainted(false);
+		showInBank.addActionListener(e -> onShowInBank.accept(null));
+		setBankOpen(false);
+
+		JPanel controls = new JPanel(new BorderLayout(0, 6));
+		controls.add(searchBar, BorderLayout.NORTH);
+		controls.add(showInBank, BorderLayout.SOUTH);
+
 		JPanel header = new JPanel(new BorderLayout(0, 6));
 		header.setBorder(new EmptyBorder(0, 0, 8, 0));
 		header.add(title, BorderLayout.NORTH);
 		header.add(counter, BorderLayout.CENTER);
-		header.add(searchBar, BorderLayout.SOUTH);
+		header.add(controls, BorderLayout.SOUTH);
 		add(header, BorderLayout.NORTH);
 
 		content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
@@ -136,6 +150,19 @@ class HouseKeepingPanel extends PluginPanel
 		this.showCounter = showCounter;
 		colors.clear();
 		colors.putAll(categoryColors);
+		render();
+	}
+
+	/**
+	 * The bank tab can only be shown while the bank is open. Must be called on the Swing thread.
+	 */
+	void setBankOpen(boolean open)
+	{
+		bankOpen = open;
+		showInBank.setEnabled(open);
+		showInBank.setToolTipText(open
+			? "Show only the suggested items in your bank; click again to go back"
+			: "Open your bank to show the suggested items there");
 		render();
 	}
 
@@ -188,13 +215,13 @@ class HouseKeepingPanel extends PluginPanel
 			List<ItemSuggestion> items = filter(shownActive, category);
 			if (!items.isEmpty())
 			{
-				addGroup(category.getDisplayName(), colors.get(category), items, false, searching);
+				addGroup(category.getDisplayName(), colors.get(category), items, category, searching);
 			}
 		}
 
 		if (!shownIgnored.isEmpty())
 		{
-			addGroup(IGNORED_GROUP, ColorScheme.MEDIUM_GRAY_COLOR, shownIgnored, true, searching);
+			addGroup(IGNORED_GROUP, ColorScheme.MEDIUM_GRAY_COLOR, shownIgnored, null, searching);
 		}
 
 		content.revalidate();
@@ -231,23 +258,20 @@ class HouseKeepingPanel extends PluginPanel
 			.collect(Collectors.toList());
 	}
 
-	private void addGroup(String name, Color color, List<ItemSuggestion> items, boolean ignoredGroup, boolean searching)
+	/**
+	 * @param category the group's category, or null for the ignored list
+	 */
+	private void addGroup(String name, Color color, List<ItemSuggestion> items, Category category, boolean searching)
 	{
+		boolean ignoredGroup = category == null;
 		JPanel rows = buildRows(items, ignoredGroup);
 		// Search results are always shown; collapsed groups come back once the search is cleared
 		rows.setVisible(searching || !collapsed.contains(name));
 
-		JLabel header = new JLabel(groupTitle(name, items.size(), rows.isVisible()));
-		header.setForeground(Color.WHITE);
-		header.setOpaque(true);
-		header.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		header.setBorder(BorderFactory.createCompoundBorder(
-			BorderFactory.createMatteBorder(0, 3, 0, 0, color),
-			new EmptyBorder(5, 6, 5, 6)));
-		header.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-		header.setAlignmentX(LEFT_ALIGNMENT);
-		header.setMaximumSize(new Dimension(Integer.MAX_VALUE, header.getPreferredSize().height));
-		header.addMouseListener(new MouseAdapter()
+		JLabel title = new JLabel(groupTitle(name, items.size(), rows.isVisible()));
+		title.setForeground(Color.WHITE);
+		title.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+		title.addMouseListener(new MouseAdapter()
 		{
 			@Override
 			public void mouseClicked(MouseEvent e)
@@ -264,10 +288,23 @@ class HouseKeepingPanel extends PluginPanel
 						collapsed.add(name);
 					}
 				}
-				header.setText(groupTitle(name, items.size(), rows.isVisible()));
+				title.setText(groupTitle(name, items.size(), rows.isVisible()));
 				content.revalidate();
 			}
 		});
+
+		JPanel header = new JPanel(new BorderLayout(6, 0));
+		header.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		header.setBorder(BorderFactory.createCompoundBorder(
+			BorderFactory.createMatteBorder(0, 3, 0, 0, color),
+			new EmptyBorder(5, 6, 5, 6)));
+		header.setAlignmentX(LEFT_ALIGNMENT);
+		header.add(title, BorderLayout.CENTER);
+		if (!ignoredGroup)
+		{
+			header.add(showLink(category), BorderLayout.EAST);
+		}
+		header.setMaximumSize(new Dimension(Integer.MAX_VALUE, header.getPreferredSize().height));
 
 		content.add(header);
 		content.add(rows);
@@ -277,6 +314,29 @@ class HouseKeepingPanel extends PluginPanel
 		spacer.setPreferredSize(new Dimension(0, 6));
 		spacer.setMaximumSize(new Dimension(Integer.MAX_VALUE, 6));
 		content.add(spacer);
+	}
+
+	private JLabel showLink(Category category)
+	{
+		JLabel link = new JLabel("show");
+		link.setFont(FontManager.getRunescapeSmallFont());
+		link.setForeground(bankOpen ? ColorScheme.BRAND_ORANGE : ColorScheme.MEDIUM_GRAY_COLOR);
+		link.setToolTipText(bankOpen
+			? "Show only these items in your bank; click again to go back"
+			: "Open your bank to show these items there");
+		if (bankOpen)
+		{
+			link.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+			link.addMouseListener(new MouseAdapter()
+			{
+				@Override
+				public void mouseClicked(MouseEvent e)
+				{
+					onShowInBank.accept(category);
+				}
+			});
+		}
+		return link;
 	}
 
 	private static String groupTitle(String name, int count, boolean open)
