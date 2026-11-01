@@ -1,0 +1,211 @@
+package com.housekeeping.data;
+
+import com.google.common.collect.ImmutableMap;
+import com.housekeeping.Confidence;
+import java.util.Map;
+import javax.annotation.Nullable;
+import lombok.Value;
+import net.runelite.api.Quest;
+import net.runelite.api.gameval.ItemID;
+
+/**
+ * Books a POH bookcase hands back for free, in bookcase order. Quest books are only stored once
+ * their quest is complete. Item ids matched against https://oldschool.runescape.wiki/w/Book
+ */
+public final class BookcaseBooks
+{
+	@Value
+	public static class Entry
+	{
+		@Nullable
+		Quest quest;
+		Confidence confidence;
+	}
+
+	private static final ImmutableMap.Builder<Integer, Entry> BUILDER = ImmutableMap.builder();
+
+	static
+	{
+		add(ItemID.ABLENKIAN_ESCAPE, null);
+		add(ItemID.RCU_INSTRUCTION_BOOK, Quest.ENTER_THE_ABYSS);
+		add(ItemID.SOS_SECURITY_BOOK, null);
+		add(ItemID.TOA_BOOK_LOBBY, Quest.INTO_THE_TOMBS);
+		add(ItemID.FOSSIL_DRAGONKIN_DIARY, null);
+		add(ItemID.HORROR_DIARY2, Quest.HORROR_FROM_THE_DEEP);
+		add(ItemID.TOA_BOOK_BABA, null);
+		add(ItemID.TOB_BOOK_NYLOCAS, null);
+		add(ItemID.ROYAL_DIARY1, Quest.ROYAL_TROUBLE);
+		add(ItemID.ROYAL_DIARY2, Quest.ROYAL_TROUBLE);
+		add(ItemID.ROYAL_DIARY3, Quest.ROYAL_TROUBLE);
+		add(ItemID.ROYAL_DIARY4, Quest.ROYAL_TROUBLE);
+		add(ItemID.ROYAL_DIARY5, Quest.ROYAL_TROUBLE);
+		add(ItemID.DWARF_ROCK_BOOK, Quest.BETWEEN_A_ROCK);
+		add(ItemID.BOOK_OF_ASTROLOGY, null);
+		add(ItemID.GOTR_BOOK, null);
+		add(ItemID.AUBURN_ECOLOGICAL_REPORTS, null);
+		add(ItemID.VIKINGEXILE_BALLAD, null);
+		add(ItemID.LUNAR_BOOK, null);
+		add(ItemID.REGICIDE_ALCHEMY, Quest.REGICIDE);
+		add(ItemID.PRIF_ARCLIGHT_BOOK, null);
+		add(ItemID.SHADES_BLOOD_DIARY, null);
+		add(ItemID.COCKTAIL_GUIDE, null);
+		add(ItemID.FEVER_PIRACY_BOOK, Quest.CABIN_FEVER);
+		add(ItemID.BOOK_OF_BINDING, Quest.LEGENDS_QUEST);
+		add(ItemID.MM2_SPY_BOOK, Quest.MONKEY_MADNESS_II);
+		add(ItemID.SLICE_GOBLIN_HISTORY_BOOK, null);
+		maybe(ItemID.ELEMENTAL_WORKSHOP_HELM_BOOK, Quest.ELEMENTAL_WORKSHOP_II);
+		maybe(ItemID.ELEMENTAL_WORKSHOP_SHIELD_BOOK, Quest.ELEMENTAL_WORKSHOP_I);
+		add(ItemID.BAXTORIAN_BOOK_WATERFALL_QUEST, Quest.WATERFALL_QUEST);
+		add(ItemID.GAME_BREW_INSTRUCTION_BOOK, null);
+		add(ItemID.TOB_BOOK_BLOAT, null);
+		add(ItemID.ROVING_CADARN_BOOK, Quest.ROVING_ELVES);
+		add(ItemID.DIGSITEBOOK, Quest.THE_DIG_SITE);
+		add(ItemID.PENG_BOOK, Quest.COLD_WAR);
+		maybe(ItemID.COLLECTION_LOG, null);
+		add(ItemID.AGRITH_BOOK, Quest.SHADOW_OF_THE_STORM);
+		add(ItemID.PRIF_RANDAS_BOOK, null);
+		add(ItemID.MOURNING_BOOK1, null);
+		add(ItemID.RAIDS_THIEVINGCHEST_BOOK, null);
+		add(ItemID.TOA_BOOK_ZEBAK, null);
+		add(ItemID.ROVING_CRYSTAL_BOOK, Quest.ROVING_ELVES);
+		add(ItemID.EYEGLO_CRYSTAL_BOOK, Quest.THE_EYES_OF_GLOUPHRIE);
+		add(ItemID.RAIDS_REWARD_BOOK, null);
+		add(ItemID.PRIF_AMLODD_BOOK, null);
+		add(ItemID.TEMPOROSS_BOOK_SHIPS_LOG, null);
+		add(ItemID.LITHKREN_DIARY, Quest.DRAGON_SLAYER_II);
+		add(ItemID.SLAYER_CAVE_DIARY, null);
+		add(ItemID.FOSSIL_SWAMP_DIARY, null);
+		add(ItemID.SERUM_BOOK, Quest.SHADES_OF_MORTTON);
+		add(ItemID.LOTR_DIARY, null);
+		add(ItemID.SWAN_BOOK, null);
+		add(ItemID.MAKINGHISTORY_JOURNAL, Quest.MAKING_HISTORY);
+		add(ItemID.MCANNONBOOK, Quest.DWARF_CANNON);
+		add(ItemID.PRIF_EBRILL_BOOK, null);
+		add(ItemID.PRIF_HYMN_SCROLL, null);
+		add(ItemID.HOSIDIUSQUEST_BOOK, Quest.THE_DEPTHS_OF_DESPAIR);
+		add(ItemID.MOURNING_BOOK2, null);
+		add(ItemID.FALL_IMCANDORIA, null);
+		add(ItemID.MYARM_BOOK, Quest.MY_ARMS_BIG_ADVENTURE);
+		add(ItemID.EP_TRANSPORT_BOOK01, Quest.EAGLES_PEAK);
+		add(ItemID.FOSSIL_NOTE_BOOK, Quest.BONE_VOYAGE);
+		add(ItemID.FOUR_DIAMONDS_TRANSLATION_PRIMER, Quest.DESERT_TREASURE_I);
+		add(ItemID.GIANNES_COOK_BOOK, null);
+		add(ItemID.FGUILD_BOOK_ALLOTMENTS, null);
+		add(ItemID.FGUILD_BOOK_BUSHES, null);
+		add(ItemID.FGUILD_BOOK_FLOWERS, null);
+		add(ItemID.FGUILD_BOOK_FRUIT, null);
+		add(ItemID.FGUILD_BOOK_HERBS, null);
+		add(ItemID.FGUILD_BOOK_HOPS, null);
+		add(ItemID.FGUILD_BOOK_TREES, null);
+		add(ItemID.OBSERVATORY_GLASSBLOWING_BOOK, null);
+		add(ItemID.GRANDTREE_JOURNAL, Quest.THE_GRAND_TREE);
+		add(ItemID.GRANDTREE_TRANSLATIONBOOK, Quest.THE_GRAND_TREE);
+		add(ItemID.WYRMSCRAIG_GOLEM_PRIMER, Quest.FALLEN_FROM_GRACE);
+		add(ItemID.PRIF_GOLLWYN_BOOK, null);
+		add(ItemID.MOURNING_BOOK4, null);
+		add(ItemID.POH_GUIDE_BOOK, null);
+		add(ItemID.PRIF_SEREN_BOOK, null);
+		add(ItemID.TOA_BOOK_AKKHA, null);
+		add(ItemID.BURGH_BOOK_HISTORIESOFHALLOWLAND, Quest.IN_AID_OF_THE_MYREQUE);
+		add(ItemID.SUROK_TOME, Quest.WHAT_LIES_BELOW);
+		add(ItemID.LOST_TRIBE_BOOK, Quest.THE_LOST_TRIBE);
+		add(ItemID.RAIDS_HOUNDMASTER_BOOK, null);
+		add(ItemID.IMAFORE_BETRAYAL, null);
+		add(ItemID.MYQ6_IVANDIS_WRITINGS, Quest.THE_BLOOD_MOON_RISES);
+		add(ItemID.TOA_BOOK_ICTHLARIN, null);
+		add(ItemID.HORROR_DIARY1, Quest.HORROR_FROM_THE_DEEP);
+		add(ItemID.MOURNING_EDERNS_JOURNAL, Quest.MOURNINGS_END_PART_II);
+		add(ItemID.UPASS_JOURNAL, Quest.UNDERGROUND_PASS);
+		add(ItemID.RAIDS_VANGUARD_BOOK, null);
+		add(ItemID.TGOD_JOURNAL, Quest.THE_GARDEN_OF_DEATH);
+		add(ItemID.BARROWS_BOOK_HISTORY, null);
+		add(ItemID.PRIF_MOUNTAIN_BOOK, null);
+		add(ItemID.HORROR_DIARY3, Quest.HORROR_FROM_THE_DEEP);
+		add(ItemID.DS2_LITHKREN_NOTES_COMPLETE, null);
+		add(ItemID.ICS_LITTLE_BOOKOFEMBALMING, Quest.ICTHLARINS_LITTLE_HELPER);
+		add(ItemID.PRIF_GARGOYLE_BOOK, null);
+		add(ItemID.LUTWIDGE_MOONFLY, null);
+		add(ItemID.MAGICTRAINING_ARENALOREBOOK, null);
+		add(ItemID.DS2_KARAMJA_DIARY, null);
+		add(ItemID.MISC_GHRIMBOOK, Quest.THRONE_OF_MISCELLANIA);
+		add(ItemID.RAIDS_VASANISTIRIO_BOOK, null);
+		add(ItemID.GODWARS_DWARVEN_BOOK, null);
+		add(ItemID.BURGH_BOOK_MODERNDAYMORYTANIA, Quest.IN_AID_OF_THE_MYREQUE);
+		add(ItemID.ALDARIN_WINE_BOOK, null);
+		add(ItemID.KARUULM_NOTES_BOOK, null);
+		add(ItemID.WGS_RESEARCHNOTES_1, Quest.WHILE_GUTHIX_SLEEPS);
+		add(ItemID.WGS_RESEARCHNOTES_2, Quest.WHILE_GUTHIX_SLEEPS);
+		add(ItemID.GA_JOURNAL, Quest.GETTING_AHEAD);
+		add(ItemID.PRIF_POEM_SCROLL, null);
+		add(ItemID.GOLEM_NOTES, Quest.THE_GOLEM);
+		add(ItemID.RAIDS_VESPULA_BOOK, null);
+		add(ItemID.WYRMSCRAIG_CATHEDRAL_DIARY, null);
+		add(ItemID.MY2ARM_BOOK, Quest.MAKING_FRIENDS_WITH_MY_ARM);
+		add(ItemID.SOTE_BAXTORIAN_BOOK, null);
+		add(ItemID.SNAKEBOSS_BOOK, null);
+		add(ItemID.MYQ4_SERAFINA_BOOK, Quest.A_TASTE_OF_HOPE);
+		add(ItemID.PRIF_LEPRECHAUN_BOOK, null);
+		add(ItemID.CUSTODIAN_LOREBOOK, null);
+		add(ItemID.ABYSSALSIRE_BOOK, null);
+		add(ItemID.POH_GAMES_BOOK, null);
+		add(ItemID.BOOK_RECIPIE_PIE, null);
+		maybe(ItemID.BRAIN_INV_SARADOMIN_BOOK, Quest.THE_GREAT_BRAIN_ROBBERY);
+		add(ItemID.BARBASSAULT_QUEEN_GUIDEBOOK, null);
+		add(ItemID.RATPITS_MANUAL, Quest.RATCATCHERS);
+		add(ItemID.BRUT_LOGBOOK, Quest.BARBARIAN_TRAINING);
+		add(ItemID.ENT_TOTEMS_INTRO_BOOK, null);
+		add(ItemID.TOA_BOOK_KEPHRI, null);
+		add(ItemID.FFG_KEENANS_NOTES, Quest.FALLEN_FROM_GRACE);
+		add(ItemID.TOB_BOOK_MAIDEN, null);
+		add(ItemID.MOURNING_BOOK3, null);
+		add(ItemID.TOB_BOOK_SOTETSEG, null);
+		add(ItemID.SHAMANS_TOME, Quest.LEGENDS_QUEST);
+		add(ItemID.THE_SHIELD_OF_ARRAV, Quest.SHIELD_OF_ARRAV);
+		add(ItemID.SUROK_DIARY, Quest.WHAT_LIES_BELOW);
+		add(ItemID.BURGH_BOOK_SEVENWARRIORS, Quest.IN_AID_OF_THE_MYREQUE);
+		add(ItemID.PRIF_SOGGY_BOOK, null);
+		add(ItemID.SOUL_WARS_TUT_BOOK, null);
+		add(ItemID.TEMPOROSS_BOOK_RESEARCH_NOTES, null);
+		add(ItemID.PRIF_ZALCANO_BOOK, null);
+		add(ItemID.MYQ6_SQUIRE_JOURNAL, Quest.THE_BLOOD_MOON_RISES);
+		add(ItemID.PRIF_ZULRAH_BOOK, null);
+		add(ItemID.HALLOWED_TOME, null);
+		add(ItemID.SOS_STRONGHOLD_BOOK, null);
+		add(ItemID.OLD_JOURNAL, Quest.UNDERGROUND_PASS);
+		add(ItemID.TALE_SERAFINA, null);
+		add(ItemID.HUEYCOATL_BOOK, null);
+		add(ItemID.DARKMEYER_BOOK, null);
+		add(ItemID.RAIDS_TEKTON_BOOK, null);
+		add(ItemID.HOSDUN_MOON_TOME, null);
+		add(ItemID.HOSDUN_SUN_TOME, null);
+		add(ItemID.HOSDUN_TEMPLE_TOME, null);
+		add(ItemID.ARDOUGNE_BOOK, null);
+		add(ItemID.SHADES_SWAMP_DIARY, null);
+		add(ItemID.PRIF_CAMORRA_BOOK, null);
+		add(ItemID.DS2_UNGAEL_NOTES_COMPLETE, null);
+		add(ItemID.TOB_BOOK_VERZIK, null);
+		add(ItemID.TOA_BOOK_WARDENS, null);
+		add(ItemID.THE_WEEPING, null);
+		add(ItemID.TOB_BOOK_XARPUS, null);
+		add(ItemID.HUNTING_BOOK_OF_BIRDS, Quest.EAGLES_PEAK);
+		add(ItemID.WITCHES_DIARY, Quest.WITCHS_HOUSE);
+		add(ItemID.POG_YEWNOCKS_NOTE, null);
+	}
+
+	public static final Map<Integer, Entry> ITEMS = BUILDER.build();
+
+	private BookcaseBooks()
+	{
+	}
+
+	private static void add(int itemId, @Nullable Quest quest)
+	{
+		BUILDER.put(itemId, new Entry(quest, Confidence.HIGH));
+	}
+
+	// Books that still do something besides being read
+	private static void maybe(int itemId, @Nullable Quest quest)
+	{
+		BUILDER.put(itemId, new Entry(quest, Confidence.MAYBE));
+	}
+}
