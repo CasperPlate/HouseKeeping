@@ -1,8 +1,9 @@
 package com.housekeeping;
 
 import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
-import java.lang.reflect.Type;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -21,13 +22,6 @@ public class ProfileStore
 {
 	private static final String BANK_KEY = "bank";
 	private static final String IGNORED_KEY = "ignored";
-
-	private static final Type BANK_TYPE = new TypeToken<LinkedHashMap<Integer, Integer>>()
-	{
-	}.getType();
-	private static final Type IGNORED_TYPE = new TypeToken<Set<Integer>>()
-	{
-	}.getType();
 
 	private final ConfigManager configManager;
 	private final Gson gson;
@@ -48,14 +42,26 @@ public class ProfileStore
 
 	public void load()
 	{
-		Map<Integer, Integer> savedBank = read(BANK_KEY, BANK_TYPE);
-		bank = savedBank == null ? Collections.emptyMap() : Collections.unmodifiableMap(savedBank);
+		// Saved as {"itemId": quantity, ...} in bank order, and [itemId, ...]
+		Map<Integer, Integer> savedBank = new LinkedHashMap<>();
+		JsonObject bankJson = read(BANK_KEY, JsonObject.class);
+		if (bankJson != null)
+		{
+			for (Map.Entry<String, JsonElement> entry : bankJson.entrySet())
+			{
+				savedBank.put(Integer.parseInt(entry.getKey()), entry.getValue().getAsInt());
+			}
+		}
+		bank = Collections.unmodifiableMap(savedBank);
 
 		ignored.clear();
-		Set<Integer> savedIgnored = read(IGNORED_KEY, IGNORED_TYPE);
+		int[] savedIgnored = read(IGNORED_KEY, int[].class);
 		if (savedIgnored != null)
 		{
-			ignored.addAll(savedIgnored);
+			for (int itemId : savedIgnored)
+			{
+				ignored.add(itemId);
+			}
 		}
 	}
 
@@ -89,9 +95,17 @@ public class ProfileStore
 		}
 	}
 
-	private <T> T read(String key, Type type)
+	private <T> T read(String key, Class<T> type)
 	{
 		String json = configManager.getRSProfileConfiguration(HouseKeepingConfig.GROUP, key);
-		return json == null ? null : gson.fromJson(json, type);
+		try
+		{
+			return json == null ? null : gson.fromJson(json, type);
+		}
+		catch (JsonParseException | NumberFormatException e)
+		{
+			// A damaged entry only costs the cached bank or ignore list; the bank is re-read when opened
+			return null;
+		}
 	}
 }

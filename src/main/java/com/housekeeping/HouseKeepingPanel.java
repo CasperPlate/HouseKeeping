@@ -72,7 +72,7 @@ class HouseKeepingPanel extends PluginPanel
 		setLayout(new BorderLayout());
 		setBorder(new EmptyBorder(8, 8, 8, 8));
 
-		JLabel title = new JLabel("House Keeping");
+		JLabel title = new JLabel(HouseKeepingPlugin.NAME);
 		title.setFont(FontManager.getRunescapeBoldFont());
 		title.setForeground(Color.WHITE);
 
@@ -80,7 +80,7 @@ class HouseKeepingPanel extends PluginPanel
 		counter.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
 
 		searchBar.setIcon(IconTextField.Icon.SEARCH);
-		searchBar.setPreferredSize(new Dimension(PluginPanel.PANEL_WIDTH - 20, 30));
+		searchBar.setPreferredSize(new Dimension(PANEL_WIDTH - 20, 30));
 		searchBar.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 		searchBar.setHoverBackgroundColor(ColorScheme.DARK_GRAY_HOVER_COLOR);
 		searchBar.setToolTipText("Search by item name or reason; typos and initials are fine");

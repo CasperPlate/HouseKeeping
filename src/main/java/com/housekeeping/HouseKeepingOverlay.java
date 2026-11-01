@@ -72,7 +72,7 @@ class HouseKeepingOverlay extends WidgetItemOverlay
 		Point mouse = client.getMouseCanvasPosition();
 		if (bounds.contains(mouse.getX(), mouse.getY()))
 		{
-			tooltipManager.add(new Tooltip(ColorUtil.wrapWithColorTag("House Keeping", color)
+			tooltipManager.add(new Tooltip(ColorUtil.wrapWithColorTag(HouseKeepingPlugin.NAME, color)
 				+ (maybe ? " (maybe)" : "") + "</br>" + suggestion.getReason()));
 		}
 	}

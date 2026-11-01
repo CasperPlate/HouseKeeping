@@ -25,7 +25,6 @@ import java.util.stream.Stream;
 import javax.inject.Inject;
 import javax.swing.SwingUtilities;
 import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.api.Item;
@@ -63,17 +62,18 @@ import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.util.ColorUtil;
 import net.runelite.client.util.ImageUtil;
 
-@Slf4j
 @PluginDescriptor(
-	name = "House Keeping",
+	name = HouseKeepingPlugin.NAME,
 	description = "Suggests bank items you have outgrown, can store in your POH, or no longer need",
 	tags = {"bank", "poh", "quest", "storage", "cleanup"}
 )
 @PluginDependency(BankTagsPlugin.class)
 public class HouseKeepingPlugin extends Plugin
 {
+	static final String NAME = "House Keeping";
+
 	// Virtual bank tags: one with every suggestion, and one per category
-	private static final String BANK_TAG = "House Keeping";
+	private static final String BANK_TAG = NAME;
 	private static final Map<Category, String> CATEGORY_BANK_TAGS = Arrays.stream(Category.values())
 		.collect(Collectors.toMap(c -> c, c -> BANK_TAG + " - " + c.getDisplayName(),
 			(a, b) -> a, () -> new EnumMap<>(Category.class)));
@@ -143,7 +143,7 @@ public class HouseKeepingPlugin extends Plugin
 		panel = new HouseKeepingPanel(itemManager, this::ignore, this::restore, this::showInBank);
 		BufferedImage icon = ImageUtil.loadImageResource(getClass(), "icon.png");
 		navButton = NavigationButton.builder()
-			.tooltip("House Keeping")
+			.tooltip(NAME)
 			.icon(icon)
 			.priority(7)
 			.panel(panel)
@@ -312,32 +312,35 @@ public class HouseKeepingPlugin extends Plugin
 			return;
 		}
 
-		for (MenuEntry entry : event.getMenuEntries())
+		// Every entry of an item's menu points at the same item, so the first one tells us which it is
+		MenuEntry itemEntry = Arrays.stream(event.getMenuEntries())
+			.filter(this::isMarkedItemWidget)
+			.findFirst()
+			.orElse(null);
+		Suggestion suggestion = itemEntry == null ? null : visibleSuggestions.get(itemEntry.getItemId());
+		if (suggestion == null)
 		{
-			int widget = entry.getParam1();
-			boolean bankItem = widget == InterfaceID.Bankmain.ITEMS;
-			boolean inventoryItem = widget == InterfaceID.Inventory.ITEMS || widget == InterfaceID.Bankside.ITEMS;
-			// Only offer the option where a marker is actually drawn
-			if (!(bankItem && config.highlightBank()) && !(inventoryItem && config.highlightInventory()))
-			{
-				continue;
-			}
-
-			Suggestion suggestion = visibleSuggestions.get(entry.getItemId());
-			if (suggestion == null)
-			{
-				return;
-			}
-
-			// Purely client-side: only updates the plugin's own ignore list. The suggestion's id is
-			// the unnoted one, so ignoring a noted stack ignores the item itself.
-			client.getMenu().createMenuEntry(1)
-				.setOption("Ignore suggestion")
-				.setTarget(ColorUtil.wrapWithColorTag("House Keeping", getColor(suggestion.getCategory())))
-				.setType(MenuAction.RUNELITE)
-				.onClick(e -> ignore(suggestion.getItemId()));
 			return;
 		}
+
+		// Purely client-side: only updates the plugin's own ignore list. The suggestion's id is
+		// the unnoted one, so ignoring a noted stack ignores the item itself.
+		client.getMenu().createMenuEntry(1)
+			.setOption("Ignore suggestion")
+			.setTarget(ColorUtil.wrapWithColorTag(NAME, getColor(suggestion.getCategory())))
+			.setType(MenuAction.RUNELITE)
+			.onClick(e -> ignore(suggestion.getItemId()));
+	}
+
+	/**
+	 * Whether the menu entry is for an item in a place where markers are drawn.
+	 */
+	private boolean isMarkedItemWidget(MenuEntry entry)
+	{
+		int widget = entry.getParam1();
+		boolean bankItem = widget == InterfaceID.Bankmain.ITEMS;
+		boolean inventoryItem = widget == InterfaceID.Inventory.ITEMS || widget == InterfaceID.Bankside.ITEMS;
+		return (bankItem && config.highlightBank()) || (inventoryItem && config.highlightInventory());
 	}
 
 	Color getColor(Category category)
@@ -412,24 +415,7 @@ public class HouseKeepingPlugin extends Plugin
 	{
 		Map<Integer, Integer> bank = store.getBank();
 		Set<Integer> ignored = store.getIgnored();
-
-		Set<Category> enabled = EnumSet.noneOf(Category.class);
-		if (config.showOutgrown())
-		{
-			enabled.add(Category.OUTGROWN);
-		}
-		if (config.showQuest())
-		{
-			enabled.add(Category.QUEST);
-		}
-		if (config.showPoh())
-		{
-			enabled.add(Category.POH);
-		}
-		if (config.showJunk())
-		{
-			enabled.add(Category.JUNK);
-		}
+		Set<Category> enabled = enabledCategories();
 
 		// Inventory items get markers too, but the panel and counter only describe the bank
 		Map<Integer, Integer> carried = inventoryItems;
@@ -482,11 +468,7 @@ public class HouseKeepingPlugin extends Plugin
 
 		boolean hasSnapshot = !bank.isEmpty();
 		boolean showCounter = config.showCounter();
-		Map<Category, Color> colors = new EnumMap<>(Category.class);
-		for (Category category : Category.values())
-		{
-			colors.put(category, getColor(category));
-		}
+		Map<Category, Color> colors = categoryColors();
 		HouseKeepingPanel currentPanel = panel;
 		SwingUtilities.invokeLater(() ->
 		{
@@ -495,6 +477,38 @@ public class HouseKeepingPlugin extends Plugin
 				currentPanel.update(active, ignoredItems, hasSnapshot, showCounter, colors);
 			}
 		});
+	}
+
+	private Set<Category> enabledCategories()
+	{
+		Set<Category> enabled = EnumSet.noneOf(Category.class);
+		if (config.showOutgrown())
+		{
+			enabled.add(Category.OUTGROWN);
+		}
+		if (config.showQuest())
+		{
+			enabled.add(Category.QUEST);
+		}
+		if (config.showPoh())
+		{
+			enabled.add(Category.POH);
+		}
+		if (config.showJunk())
+		{
+			enabled.add(Category.JUNK);
+		}
+		return enabled;
+	}
+
+	private Map<Category, Color> categoryColors()
+	{
+		Map<Category, Color> colors = new EnumMap<>(Category.class);
+		for (Category category : Category.values())
+		{
+			colors.put(category, getColor(category));
+		}
+		return colors;
 	}
 
 	private ItemSuggestion describe(Suggestion suggestion, int quantity)
@@ -506,7 +520,11 @@ public class HouseKeepingPlugin extends Plugin
 		long ge = itemManager.getItemPrice(itemId);
 		long ha = composition.getHaPrice();
 		long each = Math.max(ge, ha);
-		String source = each <= 0 ? null : ge >= ha ? "GE" : "HA";
+		String source = null;
+		if (each > 0)
+		{
+			source = ge >= ha ? "GE" : "HA";
+		}
 
 		return new ItemSuggestion(suggestion, composition.getName(), quantity, each * quantity, source);
 	}
@@ -542,18 +560,19 @@ public class HouseKeepingPlugin extends Plugin
 	private Set<PohStorage.Storage> builtStorage()
 	{
 		Set<PohStorage.Storage> built = EnumSet.noneOf(PohStorage.Storage.class);
-		switch (config.treasureChest())
+		// Each chest also holds everything the smaller chests hold; the enum is ordered smallest first
+		HouseKeepingConfig.TreasureChest chest = config.treasureChest();
+		if (chest.compareTo(HouseKeepingConfig.TreasureChest.OAK) >= 0)
 		{
-			// Each chest also holds everything the smaller chests hold
-			case MAHOGANY:
-				built.add(PohStorage.Storage.TREASURE_CHEST_MAHOGANY);
-			case TEAK:
-				built.add(PohStorage.Storage.TREASURE_CHEST_TEAK);
-			case OAK:
-				built.add(PohStorage.Storage.TREASURE_CHEST_OAK);
-			case NOT_BUILT:
-			default:
-				break;
+			built.add(PohStorage.Storage.TREASURE_CHEST_OAK);
+		}
+		if (chest.compareTo(HouseKeepingConfig.TreasureChest.TEAK) >= 0)
+		{
+			built.add(PohStorage.Storage.TREASURE_CHEST_TEAK);
+		}
+		if (chest == HouseKeepingConfig.TreasureChest.MAHOGANY)
+		{
+			built.add(PohStorage.Storage.TREASURE_CHEST_MAHOGANY);
 		}
 		if (config.armourCase())
 		{

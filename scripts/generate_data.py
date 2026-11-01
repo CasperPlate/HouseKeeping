@@ -311,7 +311,7 @@ def recycling_items(items, match_quest):
 			continue
 		# "Bone in vinegar#Goblin skull" names one version of a multi-version page
 		page, _, version = link.group(1).strip().partition("#")
-		pic = re.search(r"pic=[^|}]*\(([^)]*)\)\s*(?:\||$)", link.group(2) or "")
+		pic = re.search(r"pic=[^|}(]*\(([^)]*)\)", link.group(2) or "")
 		quest = plain(cells[1]).split("|")[-1].strip()
 		rows.append((page, version or (pic.group(1) if pic else None), quest))
 
