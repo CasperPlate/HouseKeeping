@@ -93,6 +93,26 @@ public class SuggestionEngineTest
 	}
 
 	@Test
+	public void questItemObsoleteOnceQuestFinished()
+	{
+		assertTrue(evaluate(ItemID.DOOMION_AMULET, state(Map.of(), Set.of())).isEmpty());
+
+		List<Suggestion> result = evaluate(ItemID.DOOMION_AMULET, state(Map.of(), ImmutableSet.of(Quest.UNDERGROUND_PASS)));
+		assertEquals(1, result.size());
+		assertEquals(Category.QUEST, result.get(0).getCategory());
+	}
+
+	@Test
+	public void questItemKeptUntilEveryQuestFinished()
+	{
+		Set<Quest> onlyOne = ImmutableSet.of(Quest.BIOHAZARD);
+		assertTrue(evaluate(ItemID.ROTTENAPPLES, state(Map.of(), onlyOne)).isEmpty());
+
+		Set<Quest> both = ImmutableSet.of(Quest.BIOHAZARD, Quest.MOURNINGS_END_PART_I);
+		assertEquals(1, evaluate(ItemID.ROTTENAPPLES, state(Map.of(), both)).size());
+	}
+
+	@Test
 	public void maybeSuggestionsHiddenUnlessOptedIn()
 	{
 		Suggestion maybe = new Suggestion(ItemID.STEEL_AXE, Category.OUTGROWN, Confidence.MAYBE, "");

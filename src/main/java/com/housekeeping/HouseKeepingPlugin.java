@@ -3,19 +3,20 @@ package com.housekeeping;
 import com.google.inject.Provides;
 import com.housekeeping.data.BookcaseBooks;
 import com.housekeeping.data.OutgrownItems;
+import com.housekeeping.data.QuestItems;
 import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import javax.inject.Inject;
 import javax.swing.SwingUtilities;
 import lombok.Getter;
@@ -33,6 +34,7 @@ import net.runelite.api.events.GameTick;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.events.MenuOpened;
 import net.runelite.api.events.StatChanged;
+import net.runelite.api.events.WidgetLoaded;
 import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.gameval.InventoryID;
 import net.runelite.api.gameval.ItemID;
@@ -57,9 +59,10 @@ import net.runelite.client.util.ImageUtil;
 )
 public class HouseKeepingPlugin extends Plugin
 {
-	private static final Set<Quest> BOOKCASE_QUESTS = BookcaseBooks.ITEMS.values().stream()
-		.map(BookcaseBooks.Entry::getQuest)
-		.filter(Objects::nonNull)
+	// Every quest a rule depends on; their states are read on login and whenever the bank opens
+	private static final Set<Quest> TRACKED_QUESTS = Stream.concat(
+			BookcaseBooks.ITEMS.values().stream().map(BookcaseBooks.Entry::getQuest).filter(Objects::nonNull),
+			QuestItems.ITEMS.values().stream().flatMap(Set::stream))
 		.collect(Collectors.toCollection(() -> EnumSet.noneOf(Quest.class)));
 
 	@Inject
@@ -95,6 +98,8 @@ public class HouseKeepingPlugin extends Plugin
 	private volatile Map<Integer, Suggestion> visibleSuggestions = Collections.emptyMap();
 
 	private volatile boolean refreshPending;
+	private boolean questsDirty;
+	private Set<Quest> finishedQuests = Collections.emptySet();
 	private final Map<Skill, Integer> knownLevels = new EnumMap<>(Skill.class);
 
 	@Override
@@ -115,6 +120,7 @@ public class HouseKeepingPlugin extends Plugin
 		if (client.getGameState() == GameState.LOGGED_IN)
 		{
 			store.load();
+			questsDirty = true;
 			refreshPending = true;
 		}
 	}
@@ -127,6 +133,7 @@ public class HouseKeepingPlugin extends Plugin
 		panel = null;
 		navButton = null;
 		visibleSuggestions = Collections.emptyMap();
+		finishedQuests = Collections.emptySet();
 		knownLevels.clear();
 		store.clear();
 	}
@@ -136,6 +143,7 @@ public class HouseKeepingPlugin extends Plugin
 	{
 		store.load();
 		knownLevels.clear();
+		questsDirty = true;
 		refreshPending = true;
 	}
 
@@ -144,6 +152,18 @@ public class HouseKeepingPlugin extends Plugin
 	{
 		if (event.getGameState() == GameState.LOGGED_IN)
 		{
+			questsDirty = true;
+			refreshPending = true;
+		}
+	}
+
+	@Subscribe
+	public void onWidgetLoaded(WidgetLoaded event)
+	{
+		// Quest states are read on the next tick: scripts can't run from inside this callback
+		if (event.getGroupId() == InterfaceID.BANKMAIN)
+		{
+			questsDirty = true;
 			refreshPending = true;
 		}
 	}
@@ -238,6 +258,8 @@ public class HouseKeepingPlugin extends Plugin
 		{
 			case OUTGROWN:
 				return config.outgrownColor();
+			case QUEST:
+				return config.questColor();
 			case JUNK:
 			default:
 				return config.junkColor();
@@ -265,6 +287,10 @@ public class HouseKeepingPlugin extends Plugin
 		if (config.showOutgrown())
 		{
 			enabled.add(Category.OUTGROWN);
+		}
+		if (config.showQuest())
+		{
+			enabled.add(Category.QUEST);
 		}
 		if (config.showJunk())
 		{
@@ -322,16 +348,21 @@ public class HouseKeepingPlugin extends Plugin
 			}
 		}
 
-		Set<Quest> finished = new HashSet<>();
-		for (Quest quest : BOOKCASE_QUESTS)
+		if (questsDirty)
 		{
-			if (quest.getState(client) == QuestState.FINISHED)
+			questsDirty = false;
+			Set<Quest> finished = EnumSet.noneOf(Quest.class);
+			for (Quest quest : TRACKED_QUESTS)
 			{
-				finished.add(quest);
+				if (quest.getState(client) == QuestState.FINISHED)
+				{
+					finished.add(quest);
+				}
 			}
+			finishedQuests = finished;
 		}
 
-		return new PlayerState(levels, finished);
+		return new PlayerState(levels, finishedQuests);
 	}
 
 	@Provides

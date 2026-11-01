@@ -3,6 +3,7 @@ package com.housekeeping;
 import com.google.common.collect.ImmutableList;
 import com.housekeeping.rules.BookcaseRule;
 import com.housekeeping.rules.JunkRule;
+import com.housekeeping.rules.QuestItemRule;
 import com.housekeeping.rules.SkillOutgrownRule;
 import com.housekeeping.rules.SuggestionRule;
 import java.util.ArrayList;
@@ -16,6 +17,7 @@ public class SuggestionEngine
 	private final List<SuggestionRule> rules = ImmutableList.of(
 		new BookcaseRule(),
 		new JunkRule(),
+		new QuestItemRule(),
 		new SkillOutgrownRule()
 	);
 

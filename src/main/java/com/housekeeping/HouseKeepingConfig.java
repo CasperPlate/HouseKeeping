@@ -38,11 +38,23 @@ public interface HouseKeepingConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "showQuest",
+		name = "Obsolete quest items",
+		description = "Suggest quest items that have no use left once their quests are complete",
+		section = suggestionsSection,
+		position = 1
+	)
+	default boolean showQuest()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "showJunk",
 		name = "Junk / retrievable items",
 		description = "Suggest items with no remaining use, or that you can retrieve for free",
 		section = suggestionsSection,
-		position = 1
+		position = 2
 	)
 	default boolean showJunk()
 	{
@@ -54,7 +66,7 @@ public interface HouseKeepingConfig extends Config
 		name = "Include 'maybe' suggestions",
 		description = "Also show items that are usually unneeded but still have niche uses, marked with a ?",
 		section = suggestionsSection,
-		position = 2
+		position = 3
 	)
 	default boolean showMaybe()
 	{
@@ -98,11 +110,23 @@ public interface HouseKeepingConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "questColor",
+		name = "Quest item colour",
+		description = "Marker colour for obsolete quest items",
+		section = displaySection,
+		position = 3
+	)
+	default Color questColor()
+	{
+		return new Color(181, 140, 255);
+	}
+
+	@ConfigItem(
 		keyName = "junkColor",
 		name = "Junk colour",
 		description = "Marker colour for junk and retrievable items",
 		section = displaySection,
-		position = 3
+		position = 4
 	)
 	default Color junkColor()
 	{
