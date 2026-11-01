@@ -4,9 +4,13 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Cursor;
 import java.awt.Dimension;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.util.Comparator;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -19,10 +23,13 @@ import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.border.EmptyBorder;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.PluginPanel;
+import net.runelite.client.ui.components.IconTextField;
 import net.runelite.client.util.QuantityFormatter;
 
 class HouseKeepingPanel extends PluginPanel
@@ -41,6 +48,13 @@ class HouseKeepingPanel extends PluginPanel
 	private final Set<String> collapsed = new HashSet<>();
 	private final JPanel content = new JPanel();
 	private final JLabel counter = new JLabel();
+	private final IconTextField searchBar = new IconTextField();
+
+	// The latest results from the plugin, kept so typing in the search bar can re-render without it
+	private List<ItemSuggestion> active = List.of();
+	private List<ItemSuggestion> ignored = List.of();
+	private boolean hasSnapshot;
+	private boolean showCounter;
 
 	HouseKeepingPanel(ItemManager itemManager, Consumer<Integer> onIgnore, Consumer<Integer> onRestore)
 	{
@@ -59,10 +73,49 @@ class HouseKeepingPanel extends PluginPanel
 		counter.setFont(FontManager.getRunescapeSmallFont());
 		counter.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
 
-		JPanel header = new JPanel(new BorderLayout());
+		searchBar.setIcon(IconTextField.Icon.SEARCH);
+		searchBar.setPreferredSize(new Dimension(PluginPanel.PANEL_WIDTH - 20, 30));
+		searchBar.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		searchBar.setHoverBackgroundColor(ColorScheme.DARK_GRAY_HOVER_COLOR);
+		searchBar.setToolTipText("Search by item name or reason; typos and initials are fine");
+		searchBar.getDocument().addDocumentListener(new DocumentListener()
+		{
+			@Override
+			public void insertUpdate(DocumentEvent e)
+			{
+				render();
+			}
+
+			@Override
+			public void removeUpdate(DocumentEvent e)
+			{
+				render();
+			}
+
+			@Override
+			public void changedUpdate(DocumentEvent e)
+			{
+				render();
+			}
+		});
+		searchBar.addKeyListener(new KeyAdapter()
+		{
+			@Override
+			public void keyPressed(KeyEvent e)
+			{
+				if (e.getKeyCode() == KeyEvent.VK_ESCAPE)
+				{
+					searchBar.setText("");
+				}
+			}
+		});
+		searchBar.addClearListener(this::render);
+
+		JPanel header = new JPanel(new BorderLayout(0, 6));
 		header.setBorder(new EmptyBorder(0, 0, 8, 0));
 		header.add(title, BorderLayout.NORTH);
-		header.add(counter, BorderLayout.SOUTH);
+		header.add(counter, BorderLayout.CENTER);
+		header.add(searchBar, BorderLayout.SOUTH);
 		add(header, BorderLayout.NORTH);
 
 		content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
@@ -77,19 +130,53 @@ class HouseKeepingPanel extends PluginPanel
 	void update(List<ItemSuggestion> active, List<ItemSuggestion> ignored, boolean hasSnapshot, boolean showCounter,
 		Map<Category, Color> categoryColors)
 	{
+		this.active = active;
+		this.ignored = ignored;
+		this.hasSnapshot = hasSnapshot;
+		this.showCounter = showCounter;
 		colors.clear();
 		colors.putAll(categoryColors);
+		render();
+	}
+
+	private void render()
+	{
 		content.removeAll();
 
-		// Every suggested item occupies exactly one bank slot
+		// Every suggested item occupies exactly one bank slot; the counter ignores the search
 		long value = active.stream().mapToLong(ItemSuggestion::getValue).sum();
 		counter.setText(active.size() + (active.size() == 1 ? " slot" : " slots") + " could be freed"
 			+ (value > 0 ? " (~" + QuantityFormatter.quantityToStackSize(value) + " gp)" : ""));
 		counter.setVisible(showCounter && hasSnapshot && !active.isEmpty());
 
+		String query = searchBar.getText().trim();
+		boolean searching = !query.isEmpty();
+		List<ItemSuggestion> shownActive = active;
+		List<ItemSuggestion> shownIgnored = ignored;
+		if (searching)
+		{
+			Map<ItemSuggestion, Integer> scores = new HashMap<>();
+			score(active, query, scores);
+			score(ignored, query, scores);
+			// Typo matches are a fallback: "cape" shouldn't also list "Rune cane" when real capes exist
+			if (scores.values().stream().anyMatch(score -> score > ItemSearch.TYPO_MATCH_MAX))
+			{
+				scores.values().removeIf(score -> score <= ItemSearch.TYPO_MATCH_MAX);
+			}
+			shownActive = ranked(active, scores);
+			shownIgnored = ranked(ignored, scores);
+		}
+
 		if (!hasSnapshot)
 		{
 			content.add(message("Open your bank once so House Keeping can look through it."));
+		}
+		else if (searching)
+		{
+			int matches = shownActive.size() + shownIgnored.size();
+			content.add(message(matches == 0
+				? "No suggestions match \"" + query + "\"."
+				: matches + (matches == 1 ? " match" : " matches") + " for \"" + query + "\""));
 		}
 		else if (active.isEmpty())
 		{
@@ -98,16 +185,16 @@ class HouseKeepingPanel extends PluginPanel
 
 		for (Category category : Category.values())
 		{
-			List<ItemSuggestion> items = filter(active, category);
+			List<ItemSuggestion> items = filter(shownActive, category);
 			if (!items.isEmpty())
 			{
-				addGroup(category.getDisplayName(), colors.get(category), items, false);
+				addGroup(category.getDisplayName(), colors.get(category), items, false, searching);
 			}
 		}
 
-		if (!ignored.isEmpty())
+		if (!shownIgnored.isEmpty())
 		{
-			addGroup(IGNORED_GROUP, ColorScheme.MEDIUM_GRAY_COLOR, ignored, true);
+			addGroup(IGNORED_GROUP, ColorScheme.MEDIUM_GRAY_COLOR, shownIgnored, true, searching);
 		}
 
 		content.revalidate();
@@ -121,12 +208,36 @@ class HouseKeepingPanel extends PluginPanel
 			.collect(Collectors.toList());
 	}
 
-	private void addGroup(String name, Color color, List<ItemSuggestion> items, boolean ignoredGroup)
+	private static void score(List<ItemSuggestion> items, String query, Map<ItemSuggestion, Integer> scores)
+	{
+		for (ItemSuggestion item : items)
+		{
+			int score = ItemSearch.score(query, item.getName(), item.getSuggestion().getReason());
+			if (score != ItemSearch.NO_MATCH)
+			{
+				scores.put(item, score);
+			}
+		}
+	}
+
+	/**
+	 * The scored items, best match first.
+	 */
+	private static List<ItemSuggestion> ranked(List<ItemSuggestion> items, Map<ItemSuggestion, Integer> scores)
+	{
+		return items.stream()
+			.filter(scores::containsKey)
+			.sorted(Comparator.comparing(scores::get).reversed())
+			.collect(Collectors.toList());
+	}
+
+	private void addGroup(String name, Color color, List<ItemSuggestion> items, boolean ignoredGroup, boolean searching)
 	{
 		JPanel rows = buildRows(items, ignoredGroup);
-		rows.setVisible(!collapsed.contains(name));
+		// Search results are always shown; collapsed groups come back once the search is cleared
+		rows.setVisible(searching || !collapsed.contains(name));
 
-		JLabel header = new JLabel(groupTitle(name, items.size()));
+		JLabel header = new JLabel(groupTitle(name, items.size(), rows.isVisible()));
 		header.setForeground(Color.WHITE);
 		header.setOpaque(true);
 		header.setBackground(ColorScheme.DARKER_GRAY_COLOR);
@@ -141,12 +252,19 @@ class HouseKeepingPanel extends PluginPanel
 			@Override
 			public void mouseClicked(MouseEvent e)
 			{
-				if (!collapsed.remove(name))
+				rows.setVisible(!rows.isVisible());
+				if (!searching)
 				{
-					collapsed.add(name);
+					if (rows.isVisible())
+					{
+						collapsed.remove(name);
+					}
+					else
+					{
+						collapsed.add(name);
+					}
 				}
-				header.setText(groupTitle(name, items.size()));
-				rows.setVisible(!collapsed.contains(name));
+				header.setText(groupTitle(name, items.size(), rows.isVisible()));
 				content.revalidate();
 			}
 		});
@@ -161,9 +279,9 @@ class HouseKeepingPanel extends PluginPanel
 		content.add(spacer);
 	}
 
-	private String groupTitle(String name, int count)
+	private static String groupTitle(String name, int count, boolean open)
 	{
-		return (collapsed.contains(name) ? "▸ " : "▾ ") + name + " (" + count + ")";
+		return (open ? "\u25BE " : "\u25B8 ") + name + " (" + count + ")";
 	}
 
 	private JPanel buildRows(List<ItemSuggestion> items, boolean ignoredGroup)
