@@ -10,7 +10,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -24,6 +26,7 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.api.Item;
+import net.runelite.api.ItemComposition;
 import net.runelite.api.MenuAction;
 import net.runelite.api.MenuEntry;
 import net.runelite.api.Quest;
@@ -53,7 +56,7 @@ import net.runelite.client.util.ImageUtil;
 
 @Slf4j
 @PluginDescriptor(
-	name = "HouseKeeping",
+	name = "House Keeping",
 	description = "Suggests bank items you have outgrown, can store in your POH, or no longer need",
 	tags = {"bank", "poh", "quest", "storage", "cleanup"}
 )
@@ -98,6 +101,8 @@ public class HouseKeepingPlugin extends Plugin
 	private volatile Map<Integer, Suggestion> visibleSuggestions = Collections.emptyMap();
 
 	private volatile boolean refreshPending;
+	// Inventory item id to its canonical (unnoted) id; only the set of items matters, not quantities
+	private Map<Integer, Integer> inventoryItems = Collections.emptyMap();
 	private boolean questsDirty;
 	private Set<Quest> finishedQuests = Collections.emptySet();
 	private final Map<Skill, Integer> knownLevels = new EnumMap<>(Skill.class);
@@ -110,7 +115,7 @@ public class HouseKeepingPlugin extends Plugin
 		panel = new HouseKeepingPanel(itemManager, this::ignore, this::restore);
 		BufferedImage icon = ImageUtil.loadImageResource(getClass(), "icon.png");
 		navButton = NavigationButton.builder()
-			.tooltip("HouseKeeping")
+			.tooltip("House Keeping")
 			.icon(icon)
 			.priority(7)
 			.panel(panel)
@@ -134,6 +139,7 @@ public class HouseKeepingPlugin extends Plugin
 		navButton = null;
 		visibleSuggestions = Collections.emptyMap();
 		finishedQuests = Collections.emptySet();
+		inventoryItems = Collections.emptyMap();
 		knownLevels.clear();
 		store.clear();
 	}
@@ -171,6 +177,25 @@ public class HouseKeepingPlugin extends Plugin
 	@Subscribe
 	public void onItemContainerChanged(ItemContainerChanged event)
 	{
+		if (event.getContainerId() == InventoryID.INV)
+		{
+			Map<Integer, Integer> carried = new HashMap<>();
+			for (Item item : event.getItemContainer().getItems())
+			{
+				if (item.getId() > 0)
+				{
+					carried.computeIfAbsent(item.getId(), itemManager::canonicalize);
+				}
+			}
+			// Quantities change constantly while skilling; only re-evaluate when the items themselves change
+			if (!carried.keySet().equals(inventoryItems.keySet()))
+			{
+				inventoryItems = carried;
+				refreshPending = true;
+			}
+			return;
+		}
+
 		if (event.getContainerId() != InventoryID.BANK)
 		{
 			return;
@@ -230,24 +255,28 @@ public class HouseKeepingPlugin extends Plugin
 
 		for (MenuEntry entry : event.getMenuEntries())
 		{
-			if (entry.getParam1() != InterfaceID.Bankmain.ITEMS)
+			int widget = entry.getParam1();
+			boolean bankItem = widget == InterfaceID.Bankmain.ITEMS;
+			boolean inventoryItem = widget == InterfaceID.Inventory.ITEMS || widget == InterfaceID.Bankside.ITEMS;
+			// Only offer the option where a marker is actually drawn
+			if (!(bankItem && config.highlightBank()) && !(inventoryItem && config.highlightInventory()))
 			{
 				continue;
 			}
 
-			int itemId = entry.getItemId();
-			Suggestion suggestion = visibleSuggestions.get(itemId);
+			Suggestion suggestion = visibleSuggestions.get(entry.getItemId());
 			if (suggestion == null)
 			{
 				return;
 			}
 
-			// Purely client-side: only updates the plugin's own ignore list
+			// Purely client-side: only updates the plugin's own ignore list. The suggestion's id is
+			// the unnoted one, so ignoring a noted stack ignores the item itself.
 			client.getMenu().createMenuEntry(1)
 				.setOption("Ignore suggestion")
-				.setTarget(ColorUtil.wrapWithColorTag("HouseKeeping", getColor(suggestion.getCategory())))
+				.setTarget(ColorUtil.wrapWithColorTag("House Keeping", getColor(suggestion.getCategory())))
 				.setType(MenuAction.RUNELITE)
-				.onClick(e -> ignore(itemId));
+				.onClick(e -> ignore(suggestion.getItemId()));
 			return;
 		}
 	}
@@ -297,31 +326,49 @@ public class HouseKeepingPlugin extends Plugin
 			enabled.add(Category.JUNK);
 		}
 
-		Map<Integer, Suggestion> visible = new LinkedHashMap<>();
+		// Inventory items get markers too, but the panel and counter only describe the bank
+		Map<Integer, Integer> carried = inventoryItems;
+		Set<Integer> itemIds = new LinkedHashSet<>(bank.keySet());
+		itemIds.addAll(carried.values());
+
+		Map<Integer, Suggestion> visible = new HashMap<>();
 		List<ItemSuggestion> active = new ArrayList<>();
 		List<ItemSuggestion> ignoredItems = new ArrayList<>();
-		for (Suggestion suggestion : engine.evaluate(bank.keySet(), buildPlayerState()))
+		for (Suggestion suggestion : engine.evaluate(itemIds, buildPlayerState()))
 		{
+			int itemId = suggestion.getItemId();
 			if (!SuggestionEngine.isVisible(suggestion, enabled, config.showMaybe()))
 			{
 				continue;
 			}
 
-			int itemId = suggestion.getItemId();
-			ItemSuggestion item = new ItemSuggestion(suggestion, itemManager.getItemComposition(itemId).getName(), bank.get(itemId));
-			if (ignored.contains(itemId))
-			{
-				ignoredItems.add(item);
-			}
-			else
+			boolean isIgnored = ignored.contains(itemId);
+			if (!isIgnored)
 			{
 				visible.put(itemId, suggestion);
-				active.add(item);
+			}
+
+			Integer quantity = bank.get(itemId);
+			if (quantity != null)
+			{
+				ItemSuggestion item = describe(suggestion, quantity);
+				(isIgnored ? ignoredItems : active).add(item);
+			}
+		}
+
+		// Noted items in the inventory are drawn with their noted id
+		for (Map.Entry<Integer, Integer> entry : carried.entrySet())
+		{
+			Suggestion suggestion = visible.get(entry.getValue());
+			if (suggestion != null)
+			{
+				visible.putIfAbsent(entry.getKey(), suggestion);
 			}
 		}
 		visibleSuggestions = Collections.unmodifiableMap(visible);
 
 		boolean hasSnapshot = !bank.isEmpty();
+		boolean showCounter = config.showCounter();
 		Map<Category, Color> colors = new EnumMap<>(Category.class);
 		for (Category category : Category.values())
 		{
@@ -332,9 +379,23 @@ public class HouseKeepingPlugin extends Plugin
 		{
 			if (currentPanel != null)
 			{
-				currentPanel.update(active, ignoredItems, hasSnapshot, colors);
+				currentPanel.update(active, ignoredItems, hasSnapshot, showCounter, colors);
 			}
 		});
+	}
+
+	private ItemSuggestion describe(Suggestion suggestion, int quantity)
+	{
+		int itemId = suggestion.getItemId();
+		ItemComposition composition = itemManager.getItemComposition(itemId);
+
+		// Show whichever is worth more: selling on the GE or high alching
+		long ge = itemManager.getItemPrice(itemId);
+		long ha = composition.getHaPrice();
+		long each = Math.max(ge, ha);
+		String source = each <= 0 ? null : ge >= ha ? "GE" : "HA";
+
+		return new ItemSuggestion(suggestion, composition.getName(), quantity, each * quantity, source);
 	}
 
 	private PlayerState buildPlayerState()

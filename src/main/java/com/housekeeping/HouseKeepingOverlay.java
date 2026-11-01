@@ -6,6 +6,7 @@ import java.awt.Rectangle;
 import javax.inject.Inject;
 import net.runelite.api.Client;
 import net.runelite.api.Point;
+import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.WidgetItem;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.overlay.WidgetItemOverlay;
@@ -30,12 +31,14 @@ class HouseKeepingOverlay extends WidgetItemOverlay
 		this.config = config;
 		this.tooltipManager = tooltipManager;
 		showOnBank();
+		showOnInventory();
 	}
 
 	@Override
 	public void renderItemOverlay(Graphics2D graphics, int itemId, WidgetItem widgetItem)
 	{
-		if (!config.highlightBank())
+		boolean inBank = widgetItem.getWidget().getId() == InterfaceID.Bankmain.ITEMS;
+		if (inBank ? !config.highlightBank() : !config.highlightInventory())
 		{
 			return;
 		}
@@ -69,7 +72,7 @@ class HouseKeepingOverlay extends WidgetItemOverlay
 		Point mouse = client.getMouseCanvasPosition();
 		if (bounds.contains(mouse.getX(), mouse.getY()))
 		{
-			tooltipManager.add(new Tooltip(ColorUtil.wrapWithColorTag("HouseKeeping", color)
+			tooltipManager.add(new Tooltip(ColorUtil.wrapWithColorTag("House Keeping", color)
 				+ (maybe ? " (maybe)" : "") + "</br>" + suggestion.getReason()));
 		}
 	}

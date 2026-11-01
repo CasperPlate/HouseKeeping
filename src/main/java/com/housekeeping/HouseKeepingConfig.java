@@ -86,13 +86,37 @@ public interface HouseKeepingConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "ignoreMenuOption",
-		name = "Ignore menu option",
-		description = "Add an 'Ignore suggestion' right-click option to suggested bank items",
+		keyName = "highlightInventory",
+		name = "Mark items in inventory",
+		description = "Draw a coloured dot on suggested items in your inventory",
 		section = displaySection,
 		position = 1
 	)
+	default boolean highlightInventory()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "ignoreMenuOption",
+		name = "Ignore menu option",
+		description = "Add an 'Ignore suggestion' right-click option to marked items in the bank and inventory",
+		section = displaySection,
+		position = 2
+	)
 	default boolean ignoreMenuOption()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "showCounter",
+		name = "Show slots counter",
+		description = "Show how many bank slots and how much value the suggestions add up to at the top of the panel",
+		section = displaySection,
+		position = 3
+	)
+	default boolean showCounter()
 	{
 		return true;
 	}
@@ -102,7 +126,7 @@ public interface HouseKeepingConfig extends Config
 		name = "Outgrown colour",
 		description = "Marker colour for outgrown skilling items",
 		section = displaySection,
-		position = 2
+		position = 4
 	)
 	default Color outgrownColor()
 	{
@@ -114,7 +138,7 @@ public interface HouseKeepingConfig extends Config
 		name = "Quest item colour",
 		description = "Marker colour for obsolete quest items",
 		section = displaySection,
-		position = 3
+		position = 5
 	)
 	default Color questColor()
 	{
@@ -126,7 +150,7 @@ public interface HouseKeepingConfig extends Config
 		name = "Junk colour",
 		description = "Marker colour for junk and retrievable items",
 		section = displaySection,
-		position = 4
+		position = 6
 	)
 	default Color junkColor()
 	{

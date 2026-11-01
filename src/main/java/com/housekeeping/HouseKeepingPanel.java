@@ -40,6 +40,7 @@ class HouseKeepingPanel extends PluginPanel
 	// Groups the user has collapsed; only the ignored list starts collapsed
 	private final Set<String> collapsed = new HashSet<>();
 	private final JPanel content = new JPanel();
+	private final JLabel counter = new JLabel();
 
 	HouseKeepingPanel(ItemManager itemManager, Consumer<Integer> onIgnore, Consumer<Integer> onRestore)
 	{
@@ -51,30 +52,44 @@ class HouseKeepingPanel extends PluginPanel
 		setLayout(new BorderLayout());
 		setBorder(new EmptyBorder(8, 8, 8, 8));
 
-		JLabel title = new JLabel("HouseKeeping");
+		JLabel title = new JLabel("House Keeping");
 		title.setFont(FontManager.getRunescapeBoldFont());
 		title.setForeground(Color.WHITE);
-		title.setBorder(new EmptyBorder(0, 0, 8, 0));
-		add(title, BorderLayout.NORTH);
+
+		counter.setFont(FontManager.getRunescapeSmallFont());
+		counter.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+
+		JPanel header = new JPanel(new BorderLayout());
+		header.setBorder(new EmptyBorder(0, 0, 8, 0));
+		header.add(title, BorderLayout.NORTH);
+		header.add(counter, BorderLayout.SOUTH);
+		add(header, BorderLayout.NORTH);
 
 		content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
 		add(content, BorderLayout.CENTER);
 
-		update(List.of(), List.of(), false, Map.of());
+		update(List.of(), List.of(), false, false, Map.of());
 	}
 
 	/**
 	 * Must be called on the Swing thread.
 	 */
-	void update(List<ItemSuggestion> active, List<ItemSuggestion> ignored, boolean hasSnapshot, Map<Category, Color> categoryColors)
+	void update(List<ItemSuggestion> active, List<ItemSuggestion> ignored, boolean hasSnapshot, boolean showCounter,
+		Map<Category, Color> categoryColors)
 	{
 		colors.clear();
 		colors.putAll(categoryColors);
 		content.removeAll();
 
+		// Every suggested item occupies exactly one bank slot
+		long value = active.stream().mapToLong(ItemSuggestion::getValue).sum();
+		counter.setText(active.size() + (active.size() == 1 ? " slot" : " slots") + " could be freed"
+			+ (value > 0 ? " (~" + QuantityFormatter.quantityToStackSize(value) + " gp)" : ""));
+		counter.setVisible(showCounter && hasSnapshot && !active.isEmpty());
+
 		if (!hasSnapshot)
 		{
-			content.add(message("Open your bank once so HouseKeeping can look through it."));
+			content.add(message("Open your bank once so House Keeping can look through it."));
 		}
 		else if (active.isEmpty())
 		{
@@ -179,7 +194,9 @@ class HouseKeepingPanel extends PluginPanel
 		String maybe = suggestion.getConfidence() == Confidence.MAYBE ? " ?" : "";
 		JLabel text = new JLabel("<html><body style='width:" + TEXT_WIDTH + "px'>"
 			+ "<span style='color:white'>" + item.getName() + maybe + "</span>"
-			+ " <span style='color:#a5a5a5'>x" + QuantityFormatter.quantityToStackSize(item.getQuantity()) + "</span><br>"
+			+ " <span style='color:#a5a5a5'>x" + QuantityFormatter.quantityToStackSize(item.getQuantity())
+			+ (item.getValueSource() != null ? ", " + item.getValueSource() + " " + QuantityFormatter.quantityToStackSize(item.getValue()) : "")
+			+ "</span><br>"
 			+ "<span style='color:#a5a5a5'>" + suggestion.getReason() + "</span></body></html>");
 		text.setFont(FontManager.getRunescapeSmallFont());
 		row.add(text, BorderLayout.CENTER);
