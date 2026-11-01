@@ -7,9 +7,9 @@ House Keeping only makes suggestions. It never drops, moves or sells anything fo
 ## What it suggests
 
 - **Outgrown skilling items.** Low-tier supplies and tools you've moved past. For example, raw shrimps once you have 70+ Fishing and 70+ Cooking, or a bronze axe once you can use a rune one.
-- **Obsolete quest items.** Leftover quest items that the OSRS Wiki says have no further use. An item is only suggested once *every* quest that needs it is complete.
+- **Obsolete quest items.** Leftover quest and miniquest items that the Wise Old Man's Recycling Centre would remove, or that the OSRS Wiki says are used only in that quest or have no further use. An item is only suggested once *every* quest that needs it is complete.
 - **Store in your POH.** Items that fit in your costume room: the armour case, cape rack, magic wardrobe, fancy dress box, toy box or treasure chest. Tell House Keeping which ones you've built in the *Player-owned house* section of its settings. For the treasure chest, also pick its tier, because the tier decides which clue rewards fit.
-- **Junk / retrievable items.** Items with no remaining use, such as burnt food, and books your POH bookcase gives back for free.
+- **Junk / retrievable items.** Items with no remaining use, such as burnt food or Iwan's flyer, and books your POH bookcase gives back for free.
 
 Some suggestions are only a **maybe**: usually unneeded, but with a niche use, such as steel tools or the Collection log. They're hidden unless you turn on *Include 'maybe' suggestions*, and are marked with a **?** when shown.
 

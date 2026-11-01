@@ -70,6 +70,27 @@ public class SuggestionEngineTest
 	}
 
 	@Test
+	public void wikiJunkIsJunk()
+	{
+		List<Suggestion> result = evaluate(ItemID.FLIER_PRIF, state(Map.of(), Set.of()));
+
+		assertEquals(1, result.size());
+		assertEquals(Category.JUNK, result.get(0).getCategory());
+		assertEquals(Confidence.HIGH, result.get(0).getConfidence());
+	}
+
+	@Test
+	public void questJunkIsMaybeUntilQuestFinished()
+	{
+		List<Suggestion> before = evaluate(ItemID.GROUND_BAT_BONES, state(Map.of(), Set.of()));
+		assertEquals(Confidence.MAYBE, before.get(0).getConfidence());
+
+		List<Suggestion> after = evaluate(ItemID.GROUND_BAT_BONES, state(Map.of(), ImmutableSet.of(Quest.WATCHTOWER)));
+		assertEquals(Confidence.HIGH, after.get(0).getConfidence());
+		assertEquals(Category.JUNK, after.get(0).getCategory());
+	}
+
+	@Test
 	public void bookcaseBookNeedsFinishedQuest()
 	{
 		assertTrue(evaluate(ItemID.BAXTORIAN_BOOK_WATERFALL_QUEST, state(Map.of(), Set.of())).isEmpty());

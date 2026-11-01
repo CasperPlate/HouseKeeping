@@ -2,6 +2,7 @@ package com.housekeeping;
 
 import com.google.inject.Provides;
 import com.housekeeping.data.BookcaseBooks;
+import com.housekeeping.data.JunkItems;
 import com.housekeeping.data.OutgrownItems;
 import com.housekeeping.data.PohStorage;
 import com.housekeeping.data.QuestItems;
@@ -78,9 +79,12 @@ public class HouseKeepingPlugin extends Plugin
 			(a, b) -> a, () -> new EnumMap<>(Category.class)));
 
 	// Every quest a rule depends on; their states are read on login and whenever the bank opens
-	private static final Set<Quest> TRACKED_QUESTS = Stream.concat(
-			BookcaseBooks.ITEMS.values().stream().map(BookcaseBooks.Entry::getQuest).filter(Objects::nonNull),
+	private static final Set<Quest> TRACKED_QUESTS = Stream.of(
+			BookcaseBooks.ITEMS.values().stream().map(BookcaseBooks.Entry::getQuest),
+			JunkItems.ITEMS.values().stream().map(JunkItems.Entry::getNeededFor),
 			QuestItems.ITEMS.values().stream().flatMap(Set::stream))
+		.flatMap(quests -> quests)
+		.filter(Objects::nonNull)
 		.collect(Collectors.toCollection(() -> EnumSet.noneOf(Quest.class)));
 
 	@Inject

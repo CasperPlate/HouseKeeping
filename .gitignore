@@ -10,3 +10,4 @@ nbproject/
 *.classout/
 *.tmp
 .lavish/
+__pycache__/

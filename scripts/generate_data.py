@@ -13,8 +13,10 @@ plus a runelite-api jar in the Gradle cache (run ./gradlew build once first).
     python scripts/generate_data.py            # regenerate both files
     python scripts/generate_data.py --review   # also print the wiki sentence behind every quest item
 
-Item ids are matched to net.runelite.api.gameval.ItemID constants by number, and quest names to
-net.runelite.api.Quest constants, so the generated Java never contains magic numbers or guesses.
+Quest items come from two sources: the wiki's "Quest items" category, where the page must say the
+item has no further use, and the Wise Old Man's Recycling Centre list, which is the game's own list of
+quest leftovers. Item ids are matched to net.runelite.api.gameval.ItemID constants by number, and quest
+names to net.runelite.api.Quest constants, so the generated Java never contains magic numbers or guesses.
 """
 
 import argparse
@@ -57,6 +59,11 @@ QUEST_DENY = {
 	"Frozen jug",  # thaws back into a jug
 	"Red banana",  # edible
 	"Sole",  # wording is about the statuette, not the sole
+	# The plain, drinkable rum. Its page calls the banana-stuffed rum useless, but that's a separate
+	# item ("Karamjan rum (banana)") with its own page, which this entry doesn't affect
+	"Karamjan rum",
+	"Karambwanji paste",  # wording is about one useless version of the paste
+	"Sithik portrait",  # wording is about the bad portrait, a different item
 }
 
 # Quest items to suggest even though the wiki does not say they are useless, by wiki page title.
@@ -64,13 +71,18 @@ QUEST_DENY = {
 QUEST_EXTRA = {
 }
 
-# Wiki wording that marks an item as having no use left once its quests are done.
+# Wiki wording that marks an item as having no use left once its quests are done. "Used only in" is
+# the wiki's standard opening for single-quest items; "only be used in <place>" deliberately doesn't match.
 NO_USE = re.compile(
 	r"(no (other |further |more |real |practical )?(use|purpose)"
 	r"|(has|serves) no (other |further )?(use|purpose)"
 	r"|useless after"
+	r"|(is|are|becomes?) (essentially |virtually )?useless"
+	r"|a useless item"
 	r"|no longer (has a |serves a |of any )?(use|purpose|needed)"
-	r"|not needed after)",
+	r"|not needed after"
+	r"|(quest item|item that is|an item) (only used|used only) (in|during)"
+	r"|is only used in the [^.]* quest)",
 	re.I)
 
 
@@ -285,11 +297,48 @@ def generate_books(items, match_quest):
 	return book_consts
 
 
+def recycling_items(items, match_quest):
+	"""
+	Items the Wise Old Man's Recycling Centre removes from the bank once their quest is complete: the
+	game's own list of quest leftovers, so no wording check is needed. Returns {ItemID constant: quests}.
+	"""
+	wikitext = api(action="parse", page="Wise Old Man/Recycling Centre", prop="wikitext")["parse"]["wikitext"]
+	rows = []
+	for row in wikitext.split("|-")[1:]:
+		cells = [c.lstrip("|").strip() for c in row.strip().split("\n|") if c.strip()]
+		link = ITEM_LINK.search(cells[0]) if len(cells) >= 2 else None
+		if not link:
+			continue
+		# "Bone in vinegar#Goblin skull" names one version of a multi-version page
+		page, _, version = link.group(1).strip().partition("#")
+		pic = re.search(r"pic=[^|}]*\(([^)]*)\)\s*(?:\||$)", link.group(2) or "")
+		quest = plain(cells[1]).split("|")[-1].strip()
+		rows.append((page, version or (pic.group(1) if pic else None), quest))
+
+	resolved, texts = resolve_pages(sorted({page for page, _, _ in rows}))
+	found = {}
+	for page, version, quest_name in rows:
+		title, fragment = resolved[page]
+		text = texts.get(title, "")
+		quest = match_quest(quest_name, loose=True)
+		if not quest or not text:
+			print("  skipped recycling item:", page, "-", quest_name, file=sys.stderr)
+			continue
+		if "yes" in " ".join(fields(infobox(text), "equipable")).lower():
+			continue  # equipable quest rewards are often kept as vanity items
+		for item_id in versioned_ids(text, page, fragment or version):
+			const = items.get(item_id)
+			if const:
+				found.setdefault(const, set()).add(quest)
+	print("Recycling Centre:", len(rows), "rows,", len(found), "unequipable items", file=sys.stderr)
+	return found
+
+
 def generate_quest_items(items, match_quest, book_consts, review):
 	texts = category_texts("Category:Quest items")
 	print("Fetched", len(texts), "quest item pages", file=sys.stderr)
 
-	entries = []
+	entries = {}
 	for title, text in sorted(texts.items()):
 		if title in QUEST_DENY:
 			continue
@@ -303,6 +352,8 @@ def generate_quest_items(items, match_quest, book_consts, review):
 		if not quests or None in quests:
 			continue
 
+		# Match on plain text: "[[quest item]] used only in" would otherwise slip past the wording rule
+		text = plain(text)
 		reason = NO_USE.search(text)
 		if not reason and title not in QUEST_EXTRA:
 			continue
@@ -312,16 +363,26 @@ def generate_quest_items(items, match_quest, book_consts, review):
 			continue
 		consts = [c for c in consts if c not in book_consts]
 
-		quests = sorted(set(quests))
 		for const in consts:
-			entries.append((const, quests))
+			entries.setdefault(const, set()).update(quests)
 		if review and consts:
 			where = reason.start() if reason else 0
 			snippet = plain(text[max(0, where - 150):where + 80]).replace("\n", " ")
-			print("- %s [%s]%s\n    ...%s..." % (title, ", ".join(quests),
+			print("- %s [%s]%s\n    ...%s..." % (title, ", ".join(sorted(set(quests))),
 				" (manual extra)" if title in QUEST_EXTRA else "", snippet))
 
-	lines = ["\t\tadd(ItemID.%s, %s);" % (const, ", ".join("Quest." + q for q in quests)) for const, quests in entries]
+	# Merge in the Recycling Centre's list; an item on both keeps every quest, so it waits for all of them
+	recycled = recycling_items(items, match_quest)
+	new = 0
+	for const, quests in sorted(recycled.items()):
+		if const in book_consts:
+			continue
+		new += const not in entries
+		entries.setdefault(const, set()).update(quests)
+	print(new, "quest items only found through the Recycling Centre", file=sys.stderr)
+
+	lines = ["\t\tadd(ItemID.%s, %s);" % (const, ", ".join("Quest." + q for q in sorted(quests)))
+		for const, quests in entries.items()]
 	write("QuestItems.java", QUEST_ITEMS_TEMPLATE.replace("$ENTRIES", "\n".join(lines)))
 	print(len(lines), "quest item entries", file=sys.stderr)
 
