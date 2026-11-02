@@ -7,7 +7,12 @@ build
 nbactions.xml
 nb-configuration.xml
 nbproject/
-*.classout/
+*.class
+out/
+bin/
 *.tmp
 .lavish/
 __pycache__/
+.backpassrc.json
+.claude/
+skills-lock.json
