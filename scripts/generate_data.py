@@ -394,13 +394,13 @@ POH_FURNITURE = [
 	("Magic wardrobe space", "MAGIC_WARDROBE", None),
 	("Fancy dress box space", "FANCY_DRESS_BOX", None),
 	("Toy box space", "TOY_BOX", None),
-	# Only the treasure chest's tier changes what fits: oak holds beginner and easy, teak adds medium
-	("Treasure chest space", "TREASURE_CHEST_OAK", "Beginner"),
-	("Treasure chest space", "TREASURE_CHEST_OAK", "Easy"),
-	("Treasure chest space", "TREASURE_CHEST_TEAK", "Medium"),
-	("Treasure chest space", "TREASURE_CHEST_MAHOGANY", "Hard"),
-	("Treasure chest space", "TREASURE_CHEST_MAHOGANY", "Elite"),
-	("Treasure chest space", "TREASURE_CHEST_MAHOGANY", "Master"),
+	# One storage per clue tier so suggestions can name it; the plugin maps the built chest onto tiers
+	("Treasure chest space", "TREASURE_CHEST_BEGINNER", "Beginner"),
+	("Treasure chest space", "TREASURE_CHEST_EASY", "Easy"),
+	("Treasure chest space", "TREASURE_CHEST_MEDIUM", "Medium"),
+	("Treasure chest space", "TREASURE_CHEST_HARD", "Hard"),
+	("Treasure chest space", "TREASURE_CHEST_ELITE", "Elite"),
+	("Treasure chest space", "TREASURE_CHEST_MASTER", "Master"),
 ]
 
 # Variants that share a wiki page but can't be stored: broken minigame armour and temporary event copies
@@ -480,10 +480,13 @@ public final class PohStorage
 \t\tMAGIC_WARDROBE("magic wardrobe"),
 \t\tFANCY_DRESS_BOX("fancy dress box"),
 \t\tTOY_BOX("toy box"),
-\t\t// The minimum treasure chest that holds the item
-\t\tTREASURE_CHEST_OAK("treasure chest"),
-\t\tTREASURE_CHEST_TEAK("treasure chest"),
-\t\tTREASURE_CHEST_MAHOGANY("treasure chest");
+\t\t// Treasure chest slots by clue tier: oak holds beginner and easy, teak adds medium, mahogany holds all
+\t\tTREASURE_CHEST_BEGINNER("treasure chest (beginner clue)"),
+\t\tTREASURE_CHEST_EASY("treasure chest (easy clue)"),
+\t\tTREASURE_CHEST_MEDIUM("treasure chest (medium clue)"),
+\t\tTREASURE_CHEST_HARD("treasure chest (hard clue)"),
+\t\tTREASURE_CHEST_ELITE("treasure chest (elite clue)"),
+\t\tTREASURE_CHEST_MASTER("treasure chest (master clue)");
 
 \t\tprivate final String displayName;
 \t}

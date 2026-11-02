@@ -153,11 +153,15 @@ public class SuggestionEngineTest
 	@Test
 	public void treasureChestTierLimitsClueRewards()
 	{
+		PlayerState oak = built(PohStorage.Storage.TREASURE_CHEST_BEGINNER, PohStorage.Storage.TREASURE_CHEST_EASY);
+
 		// Frog slippers are a beginner clue reward, so any chest holds them
-		assertEquals(1, evaluate(ItemID.FROG_SLIPPERS, built(PohStorage.Storage.TREASURE_CHEST_OAK)).size());
-		// A master clue reward needs the mahogany chest
-		assertTrue(evaluate(ItemID.BUCKET_HELM, built(PohStorage.Storage.TREASURE_CHEST_OAK)).isEmpty());
-		assertEquals(1, evaluate(ItemID.BUCKET_HELM, built(PohStorage.Storage.TREASURE_CHEST_MAHOGANY)).size());
+		List<Suggestion> result = evaluate(ItemID.FROG_SLIPPERS, oak);
+		assertEquals(1, result.size());
+		assertEquals("Can be stored in your POH treasure chest (beginner clue)", result.get(0).getReason());
+		// An elite clue reward needs the mahogany chest
+		assertTrue(evaluate(ItemID.BUCKET_HELM, oak).isEmpty());
+		assertEquals(1, evaluate(ItemID.BUCKET_HELM, built(PohStorage.Storage.TREASURE_CHEST_ELITE)).size());
 	}
 
 	@Test

@@ -564,15 +564,18 @@ public class HouseKeepingPlugin extends Plugin
 		HouseKeepingConfig.TreasureChest chest = config.treasureChest();
 		if (chest.compareTo(HouseKeepingConfig.TreasureChest.OAK) >= 0)
 		{
-			built.add(PohStorage.Storage.TREASURE_CHEST_OAK);
+			built.add(PohStorage.Storage.TREASURE_CHEST_BEGINNER);
+			built.add(PohStorage.Storage.TREASURE_CHEST_EASY);
 		}
 		if (chest.compareTo(HouseKeepingConfig.TreasureChest.TEAK) >= 0)
 		{
-			built.add(PohStorage.Storage.TREASURE_CHEST_TEAK);
+			built.add(PohStorage.Storage.TREASURE_CHEST_MEDIUM);
 		}
 		if (chest == HouseKeepingConfig.TreasureChest.MAHOGANY)
 		{
-			built.add(PohStorage.Storage.TREASURE_CHEST_MAHOGANY);
+			built.add(PohStorage.Storage.TREASURE_CHEST_HARD);
+			built.add(PohStorage.Storage.TREASURE_CHEST_ELITE);
+			built.add(PohStorage.Storage.TREASURE_CHEST_MASTER);
 		}
 		if (config.armourCase())
 		{
