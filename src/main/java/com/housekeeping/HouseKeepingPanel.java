@@ -14,6 +14,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -44,6 +45,8 @@ class HouseKeepingPanel extends PluginPanel
 	private final Consumer<Integer> onRestore;
 	// Called with a category, or null for every suggestion
 	private final Consumer<Category> onShowInBank;
+	// Called with the item ids matching the search, or null when not searching
+	private final Consumer<Set<Integer>> onSearch;
 	private final Map<Category, Color> colors = new EnumMap<>(Category.class);
 
 	// Groups the user has collapsed; only the ignored list starts collapsed
@@ -59,14 +62,16 @@ class HouseKeepingPanel extends PluginPanel
 	private boolean hasSnapshot;
 	private boolean showCounter;
 	private boolean bankOpen;
+	private Set<Integer> searchMatches;
 
 	HouseKeepingPanel(ItemManager itemManager, Consumer<Integer> onIgnore, Consumer<Integer> onRestore,
-		Consumer<Category> onShowInBank)
+		Consumer<Category> onShowInBank, Consumer<Set<Integer>> onSearch)
 	{
 		this.itemManager = itemManager;
 		this.onIgnore = onIgnore;
 		this.onRestore = onRestore;
 		this.onShowInBank = onShowInBank;
+		this.onSearch = onSearch;
 		collapsed.add(IGNORED_GROUP);
 
 		setLayout(new BorderLayout());
@@ -160,9 +165,6 @@ class HouseKeepingPanel extends PluginPanel
 	{
 		bankOpen = open;
 		showInBank.setEnabled(open);
-		showInBank.setToolTipText(open
-			? "Show only the suggested items in your bank; click again to go back"
-			: "Open your bank to show the suggested items there");
 		render();
 	}
 
@@ -185,14 +187,25 @@ class HouseKeepingPanel extends PluginPanel
 			Map<ItemSuggestion, Integer> scores = new HashMap<>();
 			score(active, query, scores);
 			score(ignored, query, scores);
-			// Typo matches are a fallback: "cape" shouldn't also list "Rune cane" when real capes exist
-			if (scores.values().stream().anyMatch(score -> score > ItemSearch.TYPO_MATCH_MAX))
-			{
-				scores.values().removeIf(score -> score <= ItemSearch.TYPO_MATCH_MAX);
-			}
+			int cutoff = ItemSearch.cutoff(scores.values().stream().mapToInt(Integer::intValue).max().orElse(ItemSearch.NO_MATCH));
+			scores.values().removeIf(score -> score <= cutoff);
 			shownActive = ranked(active, scores);
 			shownIgnored = ranked(ignored, scores);
 		}
+
+		// The bank tabs show the same items as the panel; ignored items are never in them anyway
+		Set<Integer> matchingIds = searching
+			? shownActive.stream().map(i -> i.getSuggestion().getItemId()).collect(Collectors.toSet())
+			: null;
+		if (!Objects.equals(matchingIds, searchMatches))
+		{
+			searchMatches = matchingIds;
+			onSearch.accept(matchingIds);
+		}
+		String shown = searching ? "matching" : "suggested";
+		showInBank.setToolTipText(bankOpen
+			? "Show only the " + shown + " items in your bank; click again to go back"
+			: "Open your bank to show the " + shown + " items there");
 
 		if (!hasSnapshot)
 		{

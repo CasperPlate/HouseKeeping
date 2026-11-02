@@ -53,6 +53,7 @@ import net.runelite.client.game.ItemManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDependency;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.plugins.banktags.BankTagsConfig;
 import net.runelite.client.plugins.banktags.BankTagsPlugin;
 import net.runelite.client.plugins.banktags.BankTagsService;
 import net.runelite.client.plugins.banktags.TagManager;
@@ -117,6 +118,12 @@ public class HouseKeepingPlugin extends Plugin
 	@Inject
 	private BankTagsService bankTagsService;
 
+	@Inject
+	private ConfigManager configManager;
+
+	// Bank tags doesn't bind its config for other plugins, so this comes from the config manager
+	private BankTagsConfig bankTagsConfig;
+
 	private final SuggestionEngine engine = new SuggestionEngine();
 
 	private HouseKeepingPanel panel;
@@ -127,6 +134,11 @@ public class HouseKeepingPlugin extends Plugin
 	 */
 	@Getter
 	private volatile Map<Integer, Suggestion> visibleSuggestions = Collections.emptyMap();
+
+	/**
+	 * Item ids matching the panel's search, or null when not searching. Narrows the bank tabs to the search results.
+	 */
+	private volatile Set<Integer> searchMatches;
 
 	private volatile boolean refreshPending;
 	// Inventory item id to its canonical (unnoted) id; only the set of items matters, not quantities
@@ -139,8 +151,9 @@ public class HouseKeepingPlugin extends Plugin
 	protected void startUp() throws Exception
 	{
 		overlayManager.add(overlay);
+		bankTagsConfig = configManager.getConfig(BankTagsConfig.class);
 
-		panel = new HouseKeepingPanel(itemManager, this::ignore, this::restore, this::showInBank);
+		panel = new HouseKeepingPanel(itemManager, this::ignore, this::restore, this::showInBank, this::setSearchMatches);
 		BufferedImage icon = ImageUtil.loadImageResource(getClass(), "icon.png");
 		navButton = NavigationButton.builder()
 			.tooltip(NAME)
@@ -152,11 +165,11 @@ public class HouseKeepingPlugin extends Plugin
 
 		// Ignored items never match: visibleSuggestions only holds what the player still wants to see.
 		// A lambda, not a method reference, so each check reads the latest map.
-		tagManager.registerTag(BANK_TAG, itemId -> visibleSuggestions.containsKey(itemId));
+		tagManager.registerTag(BANK_TAG, itemId -> visibleSuggestions.containsKey(itemId) && matchesSearch(itemId));
 		CATEGORY_BANK_TAGS.forEach((category, tag) -> tagManager.registerTag(tag, itemId ->
 		{
 			Suggestion suggestion = visibleSuggestions.get(itemId);
-			return suggestion != null && suggestion.getCategory() == category;
+			return suggestion != null && suggestion.getCategory() == category && matchesSearch(itemId);
 		}));
 
 		if (client.getGameState() == GameState.LOGGED_IN)
@@ -187,6 +200,7 @@ public class HouseKeepingPlugin extends Plugin
 		panel = null;
 		navButton = null;
 		visibleSuggestions = Collections.emptyMap();
+		searchMatches = null;
 		finishedQuests = Collections.emptySet();
 		inventoryItems = Collections.emptyMap();
 		knownLevels.clear();
@@ -230,6 +244,11 @@ public class HouseKeepingPlugin extends Plugin
 		if (event.getGroupId() == InterfaceID.BANKMAIN)
 		{
 			setBankOpen(false);
+			// Bank tags reopens the last tab with the bank; ours should reset instead, like a closed search
+			if (event.isUnload() && isOurBankTag(bankTagsConfig.tab()))
+			{
+				bankTagsConfig.tab("");
+			}
 		}
 	}
 
@@ -378,6 +397,26 @@ public class HouseKeepingPlugin extends Plugin
 			else
 			{
 				bankTagsService.openBankTag(tag, BankTagsService.OPTION_NO_LAYOUT);
+			}
+		});
+	}
+
+	private boolean matchesSearch(int itemId)
+	{
+		Set<Integer> matches = searchMatches;
+		return matches == null || matches.contains(itemId);
+	}
+
+	private void setSearchMatches(Set<Integer> matches)
+	{
+		searchMatches = matches;
+		// Re-filter an open House Keeping bank tab so it keeps showing what the panel shows
+		clientThread.invoke(() ->
+		{
+			String activeTag = bankTagsService.getActiveTag();
+			if (isOurBankTag(activeTag))
+			{
+				bankTagsService.openBankTag(activeTag, BankTagsService.OPTION_NO_LAYOUT);
 			}
 		});
 	}

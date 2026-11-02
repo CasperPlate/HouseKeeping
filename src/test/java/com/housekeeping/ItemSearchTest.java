@@ -79,6 +79,20 @@ public class ItemSearchTest
 	}
 
 	@Test
+	public void weakerMatchesAreOnlyAFallback()
+	{
+		// "ore" is inside "stored", but that reason match hides behind ores matched by name
+		int reason = ItemSearch.score("ore", "Fire cape", "Can be stored in your POH cape rack");
+		int name = score("ore", "Copper ore");
+		assertTrue(reason > ItemSearch.NO_MATCH);
+		assertTrue(reason <= ItemSearch.cutoff(name));
+		assertTrue(name > ItemSearch.cutoff(name));
+		// Without a name match the reason matches are what's left to show
+		assertTrue(reason > ItemSearch.cutoff(reason));
+		assertTrue(score("spotier cape", "Spottier cape") > ItemSearch.cutoff(score("spotier cape", "Spottier cape")));
+	}
+
+	@Test
 	public void emptyQueryMatchesNothing()
 	{
 		assertEquals(ItemSearch.NO_MATCH, score("   ", "Fire cape"));

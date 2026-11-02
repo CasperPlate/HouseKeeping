@@ -7,8 +7,8 @@ import java.util.Locale;
 /**
  * Forgiving search over suggestion names and reasons. Case, spaces and punctuation are ignored, query
  * words may come in any order, initials match ("bdm" finds "Blue dragon mask"), and longer words
- * tolerate a typo or two. Typo matches score at most {@link #TYPO_MATCH_MAX} so callers can hide them
- * whenever something matched exactly.
+ * tolerate a typo or two. Name matches score above {@link #REASON_MATCH} and typo matches at most
+ * {@link #TYPO_MATCH_MAX}, so callers can use {@link #cutoff} to hide weaker kinds of match.
  */
 final class ItemSearch
 {
@@ -17,9 +17,29 @@ final class ItemSearch
 	 * Scores at or below this come from typo-tolerant matching; everything above matched exactly.
 	 */
 	static final int TYPO_MATCH_MAX = 40;
+	/**
+	 * The score of a match on the reason alone; anything higher matched the item name.
+	 */
+	static final int REASON_MATCH = 50;
 
 	private ItemSearch()
 	{
+	}
+
+	/**
+	 * Weaker kinds of match are only a fallback: "ore" shouldn't also list every item "stored" in the POH
+	 * when ores matched by name, nor "cape" a "Rune cane" when real capes exist.
+	 *
+	 * @param best the highest score among the results
+	 * @return the score results must exceed to be shown
+	 */
+	static int cutoff(int best)
+	{
+		if (best > REASON_MATCH)
+		{
+			return REASON_MATCH;
+		}
+		return best > TYPO_MATCH_MAX ? TYPO_MATCH_MAX : NO_MATCH;
 	}
 
 	/**
@@ -60,7 +80,7 @@ final class ItemSearch
 		String compactReason = compact(reason);
 		if (compactReason.contains(compactQuery) || tokens.stream().allMatch(compactReason::contains))
 		{
-			return 50;
+			return REASON_MATCH;
 		}
 
 		int distance = fuzzyDistance(tokens, compactName);
