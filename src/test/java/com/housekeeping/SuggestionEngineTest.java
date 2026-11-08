@@ -140,6 +140,20 @@ public class SuggestionEngineTest
 	}
 
 	@Test
+	public void writingsOnTheWallCluesObsoleteOnceQuestFinished()
+	{
+		Set<Quest> done = ImmutableSet.of(Quest.THE_WRITINGS_ON_THE_WALL);
+		int[] clues = {ItemID.WOTW_KNIFE_LANDS_END, ItemID.WOTW_CERTIFICATE_HOSIDIUS, ItemID.WOTW_HEAD_HOSIDIUS,
+			ItemID.WOTW_LETTER_HOSIDIUS, ItemID.WOTW_LETTER_LANDS_END, ItemID.WOTW_NEWS_LANDS_END};
+
+		for (int itemId : clues)
+		{
+			assertTrue(evaluate(itemId, state(Map.of(), Set.of())).isEmpty());
+			assertEquals(1, evaluate(itemId, state(Map.of(), done)).size());
+		}
+	}
+
+	@Test
 	public void pohItemNeedsMatchingFurniture()
 	{
 		assertTrue(evaluate(ItemID.BUNNYEARS, built()).isEmpty());

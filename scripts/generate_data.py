@@ -69,6 +69,13 @@ QUEST_DENY = {
 # Quest items to suggest even though the wiki does not say they are useless, by wiki page title.
 # Use this for items reported by players; the quests are still read from the wiki infobox.
 QUEST_EXTRA = {
+	# The Writing's on the Wall clue items; their pages are too new to say they're useless afterwards
+	"Bloody knife (The Writing's on the Wall)",
+	"Certificate (The Writing's on the Wall)",
+	"Human head",
+	"Letter (Bernard Holland)",
+	"Letter (Jack Holland)",
+	"Newspaper cutting",
 }
 
 # Wiki wording that marks an item as having no use left once its quests are done. "Used only in" is
