@@ -140,6 +140,24 @@ public class SuggestionEngineTest
 	}
 
 	@Test
+	public void dreamPotionChainKeptUntilDragonSlayerIi()
+	{
+		Set<Quest> dreamMentorOnly = ImmutableSet.of(Quest.DREAM_MENTOR);
+		Set<Quest> both = ImmutableSet.of(Quest.DREAM_MENTOR, Quest.DRAGON_SLAYER_II);
+		int[] chain = {ItemID.DREAM_VIAL_EMPTY, ItemID.DREAM_VIAL_WATER, ItemID.DREAM_VIAL_WEED,
+			ItemID.DREAM_VIAL_FULL, ItemID.DREAM_ASTRAL_SHARDS, ItemID.DREAM_GROUNDASTRAL};
+
+		for (int itemId : chain)
+		{
+			assertTrue(evaluate(itemId, state(Map.of(), dreamMentorOnly)).isEmpty());
+
+			List<Suggestion> result = evaluate(itemId, state(Map.of(), both));
+			assertEquals(1, result.size());
+			assertEquals(Category.QUEST, result.get(0).getCategory());
+		}
+	}
+
+	@Test
 	public void writingsOnTheWallCluesObsoleteOnceQuestFinished()
 	{
 		Set<Quest> done = ImmutableSet.of(Quest.THE_WRITINGS_ON_THE_WALL);

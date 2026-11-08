@@ -78,6 +78,17 @@ QUEST_EXTRA = {
 	"Newspaper cutting",
 }
 
+# Further quests an item is still needed for, by ItemID constant, where the wiki or the Recycling Centre
+# only names one. The item is then held back until every quest is complete.
+QUEST_ALSO = {
+	# The dream potion chain is made again in Dragon Slayer II; the Recycling Centre only lists Dream Mentor
+	"DREAM_VIAL_EMPTY": {"DRAGON_SLAYER_II"},
+	"DREAM_VIAL_WATER": {"DRAGON_SLAYER_II"},
+	"DREAM_VIAL_WEED": {"DRAGON_SLAYER_II"},
+	"DREAM_VIAL_FULL": {"DRAGON_SLAYER_II"},
+	"DREAM_ASTRAL_SHARDS": {"DRAGON_SLAYER_II"},
+}
+
 # Wiki wording that marks an item as having no use left once its quests are done. "Used only in" is
 # the wiki's standard opening for single-quest items; "only be used in <place>" deliberately doesn't match.
 NO_USE = re.compile(
@@ -387,6 +398,11 @@ def generate_quest_items(items, match_quest, book_consts, review):
 		new += const not in entries
 		entries.setdefault(const, set()).update(quests)
 	print(new, "quest items only found through the Recycling Centre", file=sys.stderr)
+
+	for const, quests in QUEST_ALSO.items():
+		if const not in entries:
+			sys.exit("QUEST_ALSO item is not a quest item entry: " + const)
+		entries[const].update(quests)
 
 	lines = ["\t\tadd(ItemID.%s, %s);" % (const, ", ".join("Quest." + q for q in sorted(quests)))
 		for const, quests in entries.items()]
