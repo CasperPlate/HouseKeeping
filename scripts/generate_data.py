@@ -87,6 +87,9 @@ QUEST_ALSO = {
 	"DREAM_VIAL_WEED": {"DRAGON_SLAYER_II"},
 	"DREAM_VIAL_FULL": {"DRAGON_SLAYER_II"},
 	"DREAM_ASTRAL_SHARDS": {"DRAGON_SLAYER_II"},
+	# Used again in While Guthix Sleeps and can't be remade once both quests are done; the Recycling
+	# Centre only lists The Hand in the Sand
+	"HANDSAND_ROSE_LENS": {"WHILE_GUTHIX_SLEEPS"},
 }
 
 # Wiki wording that marks an item as having no use left once its quests are done. "Used only in" is
